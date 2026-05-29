@@ -1,0 +1,109 @@
+---
+import "@scalar/api-reference/style.css";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Platform API - Boomin Developers</title>
+    <meta name="description" content="Interactive OpenAPI reference for Boomin Platform Tokens and automation APIs." />
+    <link rel="icon" href="/favicon.svg" />
+  </head>
+  <body>
+    <header class="api-shell-header">
+      <a href="/" class="brand">
+        <img src="/favicon.svg" alt="" width="28" height="28" />
+        <span>Boomin Developers</span>
+      </a>
+      <nav>
+        <a href="/platform-api/">Platform Guide</a>
+        <a href="/openapi/platform.yaml">OpenAPI YAML</a>
+        <a href="/api/connect/">Connect API</a>
+      </nav>
+    </header>
+    <main id="api-reference"></main>
+    <script>
+      import { createApiReference } from "@scalar/api-reference";
+
+      createApiReference("#api-reference", {
+        url: "/openapi/platform.yaml",
+        theme: "moon",
+        layout: "modern",
+        hideDownloadButton: false,
+        hideModels: false,
+        defaultHttpClient: {
+          targetKey: "js",
+          clientKey: "fetch"
+        }
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  :global(body) {
+    margin: 0;
+    background: #020711;
+    color: #f8fafc;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .api-shell-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 64px;
+    padding: 0 24px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(2, 7, 17, 0.94);
+    backdrop-filter: blur(14px);
+  }
+
+  .brand,
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand,
+  nav a {
+    color: #e5edf5;
+    text-decoration: none;
+  }
+
+  .brand {
+    font-weight: 800;
+  }
+
+  nav a {
+    font-size: 13px;
+    color: #91a4b7;
+  }
+
+  nav a:hover {
+    color: #c8f7ff;
+  }
+
+  #api-reference {
+    min-height: calc(100vh - 64px);
+  }
+
+  @media (max-width: 720px) {
+    .api-shell-header {
+      align-items: flex-start;
+      flex-direction: column;
+      padding: 14px 16px;
+    }
+
+    nav {
+      flex-wrap: wrap;
+    }
+  }
+</style>

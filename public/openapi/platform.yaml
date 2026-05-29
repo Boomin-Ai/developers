@@ -1,0 +1,414 @@
+openapi: 3.1.0
+info:
+  title: Boomin Platform API
+  version: 0.3.3
+  description: Scoped private API for agents and server-side automation. Use public Creator Connect keys in browsers and private platform tokens only on servers or agent runtimes.
+servers:
+  - url: https://cloud.boomin.ai/api:xX_v8KtJ
+    description: Dedicated Boomin Platform API base for private platform-token execution.
+security:
+  - platformTokenAuth: []
+paths:
+  /scopes:
+    get:
+      summary: List V1 platform scopes
+      description: Returns the supported scope registry.
+      security: []
+      responses:
+        "200":
+          description: Scope registry
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [scopes]
+                properties:
+                  scopes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlatformScope"
+  /scopes_exec:
+    post:
+      summary: Execute one V1 platform scope
+      description: Generic scope executor used by CLI smoke tests and early agent integrations. It verifies the requested scope, audits the request, rate-limits create actions, and returns a safe scope result. Product-specific endpoints can be layered on top of the same scope model.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope]
+              properties:
+                token:
+                  type: string
+                  description: Backward-compatible body token. Prefer Authorization header.
+                scope:
+                  type: string
+                  examples: [units:create]
+                idempotency_key:
+                  type: string
+                  description: Backward-compatible body idempotency key. Prefer Idempotency-Key header.
+                data:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Scope executed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, scope, token_id]
+                properties:
+                  ok:
+                    type: boolean
+                  scope:
+                    type: object
+                    additionalProperties: true
+                  token_id:
+                    type: string
+        "400":
+          description: Unknown scope, malformed request, or create_rate_limit_exceeded
+        "401":
+          description: Unknown, revoked, or expired token
+        "403":
+          description: Token is missing the requested scope
+  /platform/tokens:
+    get:
+      summary: List platform tokens
+      description: Lists token metadata only. Token secrets are never returned after creation.
+      servers:
+        - url: https://cloud.boomin.ai/api:TfcAGZhu
+          description: Dashboard app API base for logged-in token management.
+      security:
+        - userBearerAuth: []
+      responses:
+        "200":
+          description: Token list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tokens]
+                properties:
+                  tokens:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlatformToken"
+  /platform/tokens/create:
+    post:
+      summary: Create a platform token
+      description: Creates a scoped private token. The secret is returned once.
+      servers:
+        - url: https://cloud.boomin.ai/api:TfcAGZhu
+          description: Dashboard app API base for logged-in token management.
+      security:
+        - userBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name:
+                  type: string
+                  examples: [Unit Agent]
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                  examples:
+                    - [org:read, units:read, units:create, units:delete]
+                expires_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Token created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, secret]
+                properties:
+                  token:
+                    $ref: "#/components/schemas/PlatformToken"
+                  secret:
+                    type: string
+                    description: Shown once. Store in a server secret manager.
+                    examples: [sk_boomin_live_example]
+  /platform/tokens/revoke:
+    post:
+      summary: Revoke a platform token
+      servers:
+        - url: https://cloud.boomin.ai/api:TfcAGZhu
+          description: Dashboard app API base for logged-in token management.
+      security:
+        - userBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token_id]
+              properties:
+                token_id:
+                  type: string
+      responses:
+        "200":
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+  /platform/tokens/rotate:
+    post:
+      summary: Rotate a platform token
+      description: Revokes the old token and creates a replacement with the same scope set. The new secret is returned once.
+      servers:
+        - url: https://cloud.boomin.ai/api:TfcAGZhu
+          description: Dashboard app API base for logged-in token management.
+      security:
+        - userBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token_id]
+              properties:
+                token_id:
+                  type: string
+      responses:
+        "200":
+          description: Token rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, secret]
+                properties:
+                  token:
+                    $ref: "#/components/schemas/PlatformToken"
+                  secret:
+                    type: string
+  /smoke:
+    post:
+      summary: Smoke-test a platform token
+      description: Checks token validity, organization, and scopes.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Backward-compatible body token. Prefer Authorization header.
+      responses:
+        "200":
+          description: Smoke result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, org_id, org_name, org_slug, scopes]
+                properties:
+                  ok:
+                    type: boolean
+                  org_id:
+                    type: string
+                  org_name:
+                    type: string
+                  org_slug:
+                    type: string
+                  scopes:
+                    type: array
+                    items:
+                      type: string
+                  scope:
+                    type: object
+                    additionalProperties: true
+                  mode:
+                    type: string
+                  object:
+                    type: object
+                    nullable: true
+                    additionalProperties: true
+        "400":
+          description: Malformed request
+        "401":
+          description: Unknown, revoked, or expired token
+        "403":
+          description: Token is missing the requested scope
+  /units/list:
+    post:
+      summary: List units
+      description: Requires `units:read`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                page:
+                  type: integer
+                  default: 1
+                per_page:
+                  type: integer
+                  default: 25
+      responses:
+        "200":
+          description: Units
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  units:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+  /units/create:
+    post:
+      summary: Create a unit
+      description: Requires `units:create`. Create requests are limited to 150/hour per org, token, and resource family. Supports `Idempotency-Key`.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  examples: [short-video]
+                caption:
+                  type: string
+                production_id:
+                  type: string
+                  description: Optional internal series/production id.
+                idempotency_key:
+                  type: string
+                  description: Backward-compatible body idempotency key. Prefer Idempotency-Key header.
+      responses:
+        "200":
+          description: Unit created or idempotent replay returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unit:
+                    type: object
+                    additionalProperties: true
+                  duplicate:
+                    type: boolean
+        "400":
+          description: Same idempotency key used with a different request body, or create_rate_limit_exceeded
+  /units/delete:
+    post:
+      summary: Delete a draft unit
+      description: Requires `units:delete`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [unit_id]
+              properties:
+                unit_id:
+                  type: string
+      responses:
+        "200":
+          description: Unit deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+components:
+  securitySchemes:
+    userBearerAuth:
+      type: http
+      scheme: bearer
+      description: Browser-approved Boomin CLI user token. Used for token management.
+    platformTokenAuth:
+      type: http
+      scheme: bearer
+      description: Private `sk_boomin_live_...` platform token.
+  schemas:
+    PlatformScope:
+      type: object
+      required: [scope, category, description]
+      properties:
+        scope:
+          type: string
+          examples: [units:create]
+        category:
+          type: string
+          examples: [content]
+        description:
+          type: string
+    PlatformToken:
+      type: object
+      required: [id, name, token_prefix, scopes, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        token_prefix:
+          type: string
+          description: Safe prefix for display. Never the full secret.
+        scopes:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active, revoked, expired]
+        last_used_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        success:
+          type: boolean
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+        required_scope:
+          type: string

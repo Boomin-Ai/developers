@@ -1,0 +1,3 @@
+/api /api/connect/ 302
+/openapi/creator-connect.yaml /openapi/connect.yaml 301
+/docs/* /:splat 301

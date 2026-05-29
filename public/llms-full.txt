@@ -1,0 +1,254 @@
+# Boomin Full Agent Context
+
+Boomin lets customers build creator-program and marketing-distribution infrastructure without rebuilding email OTP, Instagram OAuth, creator approval queues, referral attribution, analytics plumbing, and scoped automation tokens.
+
+## Package
+
+```bash
+npm install @boomin/connect @boomin/server
+npx @boomin/cli init
+npx @boomin/cli handoff init --framework next --auth custom
+npx @boomin/cli referral init --framework next --auth custom --write
+npx @boomin/cli skill install
+npx @boomin/cli mcp install
+npx @boomin/cli doctor --json
+```
+
+`npx @boomin/cli init` opens a browser login/signup flow, lets the developer select or create a Boomin organization and creator program, ensures a Creator Connect config exists, appends localhost origins, and writes `.env.local`:
+
+```env
+VITE_BOOMIN_PUBLIC_KEY=pk_live_...
+VITE_BOOMIN_PROGRAM_ID=...
+VITE_BOOMIN_API_BASE=https://api.boomin.ai/v1/connect
+```
+
+## Browser SDK
+
+```js
+import Boomin from "@boomin/connect";
+
+Boomin.init({
+  publicKey: import.meta.env.VITE_BOOMIN_PUBLIC_KEY,
+  programId: import.meta.env.VITE_BOOMIN_PROGRAM_ID,
+  apiBase: import.meta.env.VITE_BOOMIN_API_BASE,
+  redirectUri: window.location.origin + window.location.pathname,
+});
+
+await Boomin.requestOtp({ email: "creator@example.com", name: "Creator" });
+await Boomin.verifyOtp({ email: "creator@example.com", code: "123456" });
+await Boomin.connectInstagram({ requireCreator: true });
+```
+
+After redirect:
+
+```js
+const result = Boomin.consumeRedirectResult();
+if (result?.sessionId) {
+  const status = await Boomin.getConnectStatus(result.sessionId);
+}
+```
+
+## Signed Handoff
+
+Use Signed Handoff when the customer app already has a logged-in user.
+
+```js
+import { createBoominCreatorJoinHandler } from "@boomin/server/next";
+
+export const GET = createBoominCreatorJoinHandler({
+  publicKey: process.env.BOOMIN_CONNECT_PUBLIC_KEY,
+  programId: process.env.BOOMIN_CONNECT_PROGRAM_ID,
+  redirectUri: process.env.BOOMIN_CONNECT_REDIRECT_URI,
+  signingSecret: process.env.BOOMIN_HANDOFF_SIGNING_SECRET,
+  issuer: "your-app.com",
+  loginUrl: "/login",
+  getCurrentUser: async (request) => ({
+    externalUserId: "user_123",
+    email: "creator@example.com",
+    name: "Creator",
+    metadata: {},
+  }),
+});
+```
+
+Handoff payloads are HMAC-SHA256 signed stable JSON, expire quickly, use one-time nonces, and must target an allowed redirect origin.
+
+## Referral-first install path
+
+When the installer app already has auth, prefer the referral scaffold:
+
+```bash
+npx @boomin/cli referral init --framework next --auth clerk --write
+npx @boomin/cli doctor
+```
+
+## Boomin MCP
+
+Recommended agent install:
+
+```bash
+npx @boomin/cli@latest skill install
+npx @boomin/cli@latest mcp install
+npx @boomin/cli@latest doctor
+```
+
+Restart Claude Code or Codex after install so the Boomin skill metadata and MCP server are loaded.
+
+Manual hosted install:
+
+```bash
+claude mcp add --transport http boomin https://mcp.boomin.ai/mcp
+```
+
+OAuth-aware MCP clients can connect directly to `https://mcp.boomin.ai/mcp`. Missing or expired authorization returns a standards-style OAuth challenge that points clients to `https://mcp.boomin.ai/authorize`.
+
+Local stdio install for Codex-style agents:
+
+```bash
+npx @boomin/mcp
+npx @boomin/cli mcp
+```
+
+The CLI `mcp install` path creates a scoped platform token and writes it into Claude Code's user MCP config as a static bearer header. OAuth-aware clients can use the hosted consent flow instead. Both paths map to Boomin platform scopes and audit logs.
+
+Default MCP skill pack:
+
+- `Referral Program Installer`: `boomin.doctor`, `boomin.detect_project`, `boomin.get_connect_config`, `boomin.scaffold_referral_first`, `boomin.verify_referral_install`, `boomin.get_partner_standing`, `boomin.record_test_event`.
+
+Admin opt-in MCP skill pack:
+
+- `Program Operator`: `boomin.get_program`, `boomin.update_program`, `boomin.update_required_channels`, `boomin.update_referral_settings`, requirement CRUD, tier CRUD, and program evaluation.
+
+Program Operator requires explicit scopes such as `programs:update`, `connect_config:write`, `program_requirements:write`, and `program_tiers:write`.
+
+Generated files:
+- `app/api/boomin/partner/join/route.js` signs the current app user into Boomin.
+- `app/api/boomin/partner/status/route.js` fetches only the current user's standing.
+- `app/r/[code]/route.js` records `link_clicks` and redirects with `?ref=<code>`.
+- `app/partner/page.jsx` shows referral link, copy button, metrics, approval, qualification, and optional Instagram connect.
+
+Boomin standing responses include:
+
+```json
+{
+  "referral": { "code": "ABC123", "url": "https://app.example/r/ABC123", "active": true },
+  "metrics": { "linkClicks": 0, "signups": 0, "sales": 0, "gmvCents": 0, "productUsage": 0 },
+  "approvalStatus": "pending",
+  "qualificationStatus": "qualified",
+  "requiredChannels": [],
+  "missingChannels": []
+}
+```
+
+Instagram is optional. Referral-only programs use `requiredChannels: []`. Programs that require Instagram return referral data plus `missingChannels: ["instagram"]` until OAuth is complete.
+
+## Public vs private credentials
+
+Public Creator Connect key:
+- Prefix: `pk_live_...`
+- Browser-safe.
+- Starts OTP and Instagram Creator Connect flows.
+- Restricted by allowed origins and redirect origins.
+
+Private platform token:
+- Prefix: `sk_boomin_live_...`
+- Server/agent only.
+- Scoped.
+- Revocable.
+- Has request audit logs.
+- Create endpoints are limited to 150 creates/hour per org + token + resource family.
+
+## Platform token commands
+
+```bash
+npx @boomin/cli scopes
+npx @boomin/cli scopes --json
+npx @boomin/cli scopes explain units:create
+
+npx @boomin/cli token create --name "Unit Agent" --scopes org:read,units:read,units:create,units:delete
+npx @boomin/cli token list --json
+npx @boomin/cli token revoke <token_id>
+npx @boomin/cli token rotate <token_id>
+
+npx @boomin/cli platform smoke --read-only --token sk_boomin_live_...
+npx @boomin/cli platform smoke --write --cleanup --token sk_boomin_live_...
+npx @boomin/cli platform smoke --all-scopes --cleanup --json
+```
+
+`platform smoke --all-scopes` creates a temporary all-scope token if no platform token is supplied, executes all registered V1 scopes through `POST /scopes_exec` on `https://cloud.boomin.ai/api:xX_v8KtJ`, cleans up created smoke objects when `--cleanup` is present, and revokes the temporary token.
+
+## V1 scopes
+
+Setup:
+- `org:read`
+- `connect_config:read`
+- `connect_config:write`
+
+Programs:
+- `programs:read`
+- `programs:create`
+- `programs:update`
+- `programs:delete`
+- `program_members:read`
+- `program_members:approve`
+- `program_resources:read`
+- `program_resources:write`
+- `campaigns:read`
+- `campaigns:write`
+- `benefits:read`
+- `benefits:write`
+- `webhooks:read`
+- `webhooks:write`
+
+Content:
+- `series:read`
+- `series:create`
+- `series:update`
+- `series:delete`
+- `units:read`
+- `units:create`
+- `units:update`
+- `units:delete`
+- `units:publish`
+
+UI and assets:
+- `pages:read`
+- `pages:write`
+- `pages:delete`
+- `canvas:read`
+- `canvas:write`
+- `canvas:delete`
+- `files:read`
+- `files:write`
+- `files:delete`
+
+Automation and data:
+- `agents:read`
+- `agents:write`
+- `agents:run`
+- `workflows:read`
+- `workflows:write`
+- `workflows:run`
+- `contacts:read`
+- `segments:read`
+- `segments:write`
+- `events:read`
+- `events:write`
+
+Commerce:
+- `commerce:read`
+- `commerce:write`
+
+## OpenAPI
+
+Creator Connect:
+- Docs: https://developers.boomin.ai/api/connect/
+- Spec: https://developers.boomin.ai/openapi/connect.yaml
+
+Platform API:
+- Docs: https://developers.boomin.ai/api/platform/
+- Spec: https://developers.boomin.ai/openapi/platform.yaml
+
+## Product model
+
+Programs are durable. Campaigns are activation pushes inside a program. Program membership owns approval status, referral code, connection status, and billable creator state. Campaigns, benefits, requirements, and webhooks build on top of program membership.

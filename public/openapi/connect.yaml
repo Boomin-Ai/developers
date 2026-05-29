@@ -1,0 +1,452 @@
+openapi: 3.1.0
+info:
+  title: Boomin Creator Connect API
+  version: 0.3.3
+servers:
+  - url: https://api.boomin.ai/v1/connect
+paths:
+  /auth/otp:
+    post:
+      summary: Request a creator email OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestOtpInput"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, user_id, program_id]
+                properties:
+                  success:
+                    type: boolean
+                  user_id:
+                    type: string
+                  program_id:
+                    type: string
+  /auth/verify:
+    post:
+      summary: Verify creator email OTP and enroll creator as pending
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpInput"
+      responses:
+        "200":
+          description: Creator verified and pending in program
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatorAuthResult"
+  /me:
+    get:
+      summary: Read the current verified creator
+      security:
+        - creatorBearerAuth: []
+      parameters:
+        - in: query
+          name: publicKey
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: programId
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current creator state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatorAuthResult"
+  /config:
+    get:
+      summary: Read public connect config
+      parameters:
+        - in: query
+          name: publicKey
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: programId
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectConfig"
+  /sessions:
+    post:
+      summary: Create an Instagram connect session
+      description: If a creator bearer token is supplied, the Worker links the session to that verified creator/member. If no token is supplied, the legacy direct-social flow is still supported.
+      security:
+        - creatorBearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [publicKey, redirectUri]
+              properties:
+                publicKey:
+                  type: string
+                programId:
+                  type: string
+                redirectUri:
+                  type: string
+                  format: uri
+                referralCode:
+                  type: string
+                requireCreator:
+                  type: boolean
+                  description: Require a verified creator bearer token before Instagram OAuth starts.
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectSession"
+  /handoff:
+    post:
+      summary: Signed app-user handoff into Partner Connect
+      description: Server-to-server endpoint for apps that already authenticate users. The customer server signs a stable JSON payload with its handoff secret; Boomin links the external user to a program member and returns an Instagram OAuth URL when needed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payload, signature]
+              properties:
+                payload:
+                  $ref: "#/components/schemas/HandoffPayload"
+                signature:
+                  type: string
+                  description: Base64url HMAC-SHA256 signature over stable JSON payload.
+      responses:
+        "200":
+          description: Handoff accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HandoffResult"
+        "401":
+          description: Missing, expired, or invalid signature
+        "403":
+          description: Issuer, audience, program, or redirect URI is not allowed
+        "409":
+          description: Nonce has already been used
+  /sessions/{sessionId}:
+    get:
+      summary: Read session status
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectStatus"
+  /events:
+    post:
+      summary: Ingest a customer-side program metric event
+      description: Customers use this server-to-server endpoint to send sales, usage, discount redemption, page views, or manual proof into Boomin. The Worker hashes the bearer key before proxying to Xano.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgramMetricEventInput"
+      responses:
+        "200":
+          description: Metric accepted or deduplicated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted, duplicate, metric_event_id, member_id, program_id]
+                properties:
+                  accepted:
+                    type: boolean
+                  duplicate:
+                    type: boolean
+                  metric_event_id:
+                    type: string
+                  member_id:
+                    type: string
+                  program_id:
+                    type: string
+                  campaign_id:
+                    type: string
+        "401":
+          description: Missing or invalid server key
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    creatorBearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    RequestOtpInput:
+      type: object
+      required: [publicKey, email]
+      properties:
+        publicKey:
+          type: string
+        programId:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        phone:
+          type: string
+        referralCode:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    VerifyOtpInput:
+      allOf:
+        - $ref: "#/components/schemas/RequestOtpInput"
+        - type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+    CreatorAuthResult:
+      type: object
+      required: [auth_token, creator, member, status]
+      properties:
+        success:
+          type: boolean
+        auth_token:
+          type: string
+        token:
+          type: string
+        creator:
+          type: object
+          additionalProperties: true
+        user:
+          type: object
+          additionalProperties: true
+        contact:
+          type: object
+          additionalProperties: true
+        member:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+    ConnectConfig:
+      type: object
+      required: [publicKey, programName, provider]
+      properties:
+        publicKey:
+          type: string
+        programId:
+          type: string
+        programName:
+          type: string
+        brandName:
+          type: string
+        provider:
+          type: string
+          enum: [instagram]
+        defaultApprovalStatus:
+          type: string
+          enum: [pending, approved]
+        allowedOrigins:
+          type: array
+          items:
+            type: string
+    ConnectSession:
+      type: object
+      required: [sessionId, authUrl, status]
+      properties:
+        sessionId:
+          type: string
+        state:
+          type: string
+          description: OAuth state value. In v0.3.3 this equals the durable session id.
+        session_id:
+          type: string
+        authUrl:
+          type: string
+          format: uri
+        auth_url:
+          type: string
+          format: uri
+        status:
+          $ref: "#/components/schemas/ConnectSessionStatus"
+    HandoffPayload:
+      type: object
+      required: [iss, aud, iat, exp, nonce, publicKey, programId, redirectUri, externalUserId, email, name, metadata]
+      properties:
+        iss:
+          type: string
+        aud:
+          type: string
+          default: boomin.ai
+        iat:
+          type: integer
+        exp:
+          type: integer
+        nonce:
+          type: string
+        publicKey:
+          type: string
+        programId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        externalUserId:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    HandoffResult:
+      type: object
+      required: [status, partnerId, memberId, sessionId, state]
+      properties:
+        status:
+          type: string
+          enum: [needs_instagram, pending_approval, approved, rejected]
+        partnerId:
+          type: string
+        memberId:
+          type: string
+        sessionId:
+          type: string
+        state:
+          type: string
+        authUrl:
+          type: string
+          format: uri
+          nullable: true
+        member:
+          type: object
+          additionalProperties: true
+        instagram:
+          type: object
+          nullable: true
+          additionalProperties: true
+    ConnectStatus:
+      type: object
+      required: [sessionId, status]
+      properties:
+        sessionId:
+          type: string
+        session_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/ConnectSessionStatus"
+        programId:
+          type: string
+        programMemberId:
+          type: string
+        integrationId:
+          type: string
+        memberStatus:
+          type: string
+        approvalStatus:
+          type: string
+          enum: [pending, approved, rejected]
+    ConnectSessionStatus:
+      type: string
+      enum:
+        - created
+        - oauth_started
+        - connected
+        - pending_approval
+        - approved
+        - rejected
+        - failed
+    ProgramMetricEventInput:
+      type: object
+      required: [publicKey, event_id, event_type, creator_ref, metric_key]
+      properties:
+        publicKey:
+          type: string
+        event_id:
+          type: string
+          description: Customer idempotency key. Retries with the same event_id do not double count.
+        event_type:
+          type: string
+          examples: [sale.created, view.recorded, discount.redeemed]
+        creator_ref:
+          type: string
+          description: Program member id or creator referral code.
+        campaign_id:
+          type: string
+        metric_key:
+          type: string
+          enum: [views, sales_count, revenue_cents, post_count, mention_count, sentiment_score, referral_count, manual_approval]
+        amount:
+          type: number
+          default: 1
+        currency:
+          type: string
+          examples: [usd]
+        occurred_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+    OutboundWebhookEvent:
+      type: object
+      required: [event_id, event_type, payload]
+      properties:
+        event_id:
+          type: string
+        event_type:
+          type: string
+          enum:
+            - creator.approved
+            - campaign.assignment.created
+            - program.metric.recorded
+            - program.requirement.met
+            - program.tier.changed
+            - program.entitlement.unlocked
+            - program.entitlement.revoked
+        payload:
+          type: object
+          additionalProperties: true

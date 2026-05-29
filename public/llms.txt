@@ -1,0 +1,74 @@
+# Boomin Developers
+
+Boomin docs: https://developers.boomin.ai
+
+Core surfaces:
+- Browser SDK: `@boomin/connect`; CLI: `@boomin/cli`
+- Install: `npm install @boomin/connect @boomin/server`
+- Initialize app config: `npx @boomin/cli init`
+- Signed handoff scaffold: `npx @boomin/cli handoff init --framework next --auth custom`
+- Referral-first scaffold: `npx @boomin/cli referral init --framework next --auth custom --write`
+- Agent skill install: `npx @boomin/cli@latest skill install`
+- MCP hosted install: `npx @boomin/cli@latest mcp install`
+- MCP manual hosted install: `claude mcp add --transport http boomin https://mcp.boomin.ai/mcp`
+- MCP local stdio install: `npx @boomin/mcp` or `npx @boomin/cli mcp`
+- Creator Connect API: https://api.boomin.ai/v1/connect
+- Platform API: https://cloud.boomin.ai/api:xX_v8KtJ
+- Connect OpenAPI: https://developers.boomin.ai/openapi/connect.yaml
+- Platform OpenAPI: https://developers.boomin.ai/openapi/platform.yaml
+
+Use public `pk_live_...` keys in browser code for Creator Connect.
+Never expose private `sk_boomin_live_...` platform tokens in browser code.
+
+Recommended Creator Connect flow:
+1. `Boomin.init({ publicKey, programId, apiBase, redirectUri })`
+2. `Boomin.requestOtp({ email, name })`
+3. `Boomin.verifyOtp({ email, code })`
+4. `Boomin.connectInstagram({ requireCreator: true })`
+5. `Boomin.getConnectStatus(sessionId)`
+
+Recommended signed handoff flow for apps with existing users:
+1. Install `@boomin/server` on the server.
+2. Run `npx @boomin/cli referral init --framework next --auth clerk --write`.
+3. Return `{ externalUserId, email, name, metadata }` from your auth provider.
+4. Sign with `BOOMIN_HANDOFF_SIGNING_SECRET`.
+5. Show the generated `/partner` page with referral link, metrics, and optional Instagram connect.
+
+Referral-first first value:
+1. User visits `/partner`.
+2. User clicks join.
+3. Server sends signed handoff to Boomin.
+4. Boomin returns `referral: { code, url, active }` and `metrics`.
+5. `/r/[code]` records `link_clicks` and redirects to the app destination with `?ref=<code>`.
+
+CLI commands:
+- `npx @boomin/cli --help`
+- `npx @boomin/cli login`
+- `npx @boomin/cli init`
+- `npx @boomin/cli status --json`
+- `npx @boomin/cli scopes --json`
+- `npx @boomin/cli scopes explain units:create`
+- `npx @boomin/cli token create --name "Agent" --scopes org:read,units:read,units:create`
+- `npx @boomin/cli platform smoke --read-only --token sk_boomin_live_...`
+- `npx @boomin/cli platform smoke --write --cleanup --token sk_boomin_live_...`
+- `npx @boomin/cli platform smoke --all-scopes --cleanup --json`
+- `npx @boomin/cli handoff init --framework next --auth clerk`
+- `npx @boomin/cli referral init --framework next --auth clerk --write`
+- `npx @boomin/cli skill install`
+- `npx @boomin/cli mcp install`
+- `npx @boomin/cli doctor --json`
+
+MCP skill packs:
+- `Referral Program Installer` is default and can diagnose, scaffold, verify, read standing, and record test events.
+- `Program Operator` is admin-only and can update channels, requirements, tiers, referral settings, and evaluate programs.
+
+Key docs:
+- Quickstart: https://developers.boomin.ai/quickstart/
+- Browser SDK: https://developers.boomin.ai/creator-connect/browser-sdk/
+- Account-first flow: https://developers.boomin.ai/creator-connect/account-first/
+- Signed handoff: https://developers.boomin.ai/creator-connect/signed-handoff/
+- CLI guide: https://developers.boomin.ai/cli/
+- Platform API: https://developers.boomin.ai/platform-api/
+- MCP guide: https://developers.boomin.ai/cli/mcp/
+- Scope reference: https://developers.boomin.ai/tokens-scopes/scopes/
+- API safety: https://developers.boomin.ai/tokens-scopes/safety/
