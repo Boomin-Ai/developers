@@ -175,7 +175,7 @@ npx @boomin/cli platform smoke --write --cleanup --token sk_boomin_live_...
 npx @boomin/cli platform smoke --all-scopes --cleanup --json
 ```
 
-`platform smoke --all-scopes` creates a temporary all-scope token if no platform token is supplied, executes all registered V1 scopes through `POST /scopes_exec` on `https://cloud.boomin.ai/api:xX_v8KtJ`, cleans up created smoke objects when `--cleanup` is present, and revokes the temporary token.
+`platform smoke --all-scopes` creates a temporary all-scope token if no platform token is supplied, executes all registered V1 scopes through `POST /scopes_exec` on `https://api.boomin.ai/v1/platform`, cleans up created smoke objects when `--cleanup` is present, and revokes the temporary token.
 
 ## V1 scopes
 

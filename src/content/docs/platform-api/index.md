@@ -28,7 +28,7 @@ The API checks:
 The CLI currently uses:
 
 ```txt
-https://cloud.boomin.ai/api:xX_v8KtJ
+https://api.boomin.ai/v1/platform
 ```
 
 Token management still uses the dashboard app API because creating, rotating, and revoking tokens requires a logged-in Boomin user. Private token execution uses the dedicated Platform API group above.
