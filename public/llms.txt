@@ -13,7 +13,7 @@ Core surfaces:
 - MCP manual hosted install: `claude mcp add --transport http boomin https://mcp.boomin.ai/mcp`
 - MCP local stdio install: `npx @boomin/mcp` or `npx @boomin/cli mcp`
 - Creator Connect API: https://api.boomin.ai/v1/connect
-- Platform API: https://cloud.boomin.ai/api:xX_v8KtJ
+- Platform API: https://api.boomin.ai/v1/platform
 - Connect OpenAPI: https://developers.boomin.ai/openapi/connect.yaml
 - Platform OpenAPI: https://developers.boomin.ai/openapi/platform.yaml
 

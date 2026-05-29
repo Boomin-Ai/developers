@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: Boomin Platform API
-  version: 0.3.3
+  version: 0.3.4
   description: Scoped private API for agents and server-side automation. Use public Creator Connect keys in browsers and private platform tokens only on servers or agent runtimes.
 servers:
-  - url: https://cloud.boomin.ai/api:xX_v8KtJ
+  - url: https://api.boomin.ai/v1/platform
     description: Dedicated Boomin Platform API base for private platform-token execution.
 security:
   - platformTokenAuth: []
@@ -84,7 +84,7 @@ paths:
       summary: List platform tokens
       description: Lists token metadata only. Token secrets are never returned after creation.
       servers:
-        - url: https://cloud.boomin.ai/api:TfcAGZhu
+        - url: https://api.boomin.ai/v1/app
           description: Dashboard app API base for logged-in token management.
       security:
         - userBearerAuth: []
@@ -106,7 +106,7 @@ paths:
       summary: Create a platform token
       description: Creates a scoped private token. The secret is returned once.
       servers:
-        - url: https://cloud.boomin.ai/api:TfcAGZhu
+        - url: https://api.boomin.ai/v1/app
           description: Dashboard app API base for logged-in token management.
       security:
         - userBearerAuth: []
@@ -149,7 +149,7 @@ paths:
     post:
       summary: Revoke a platform token
       servers:
-        - url: https://cloud.boomin.ai/api:TfcAGZhu
+        - url: https://api.boomin.ai/v1/app
           description: Dashboard app API base for logged-in token management.
       security:
         - userBearerAuth: []
@@ -175,7 +175,7 @@ paths:
       summary: Rotate a platform token
       description: Revokes the old token and creates a replacement with the same scope set. The new secret is returned once.
       servers:
-        - url: https://cloud.boomin.ai/api:TfcAGZhu
+        - url: https://api.boomin.ai/v1/app
           description: Dashboard app API base for logged-in token management.
       security:
         - userBearerAuth: []

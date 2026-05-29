@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Boomin Creator Connect API
-  version: 0.3.3
+  version: 0.3.4
 servers:
   - url: https://api.boomin.ai/v1/connect
 paths:
@@ -21,14 +21,16 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [success, user_id, program_id]
+                required: [success, sent]
                 properties:
                   success:
                     type: boolean
-                  user_id:
+                  sent:
+                    type: boolean
+                    description: Whether the OTP email was dispatched.
+                  code:
                     type: string
-                  program_id:
-                    type: string
+                    description: Only returned when the Worker runs with debug auth codes enabled. Never present in production.
   /auth/verify:
     post:
       summary: Verify creator email OTP and enroll creator as pending
@@ -45,6 +47,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreatorAuthResult"
+  /join:
+    post:
+      summary: Join a program with a verified partner token or partner email
+      description: >-
+        Enrolls a partner as a program member and returns their public standing. Send a verified partner bearer
+        token, or a partner email in the body. Referral-first programs use this without any social channel.
+      security:
+        - creatorBearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinInput"
+      responses:
+        "201":
+          description: Member joined (or already present) with current standing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinResult"
+        "401":
+          description: No verified partner token or partner email was supplied
+        "403":
+          description: Origin is not allowed for this Partner Connect config
   /me:
     get:
       summary: Read the current verified creator
@@ -172,12 +200,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConnectStatus"
+  /standing:
+    post:
+      summary: Read signed bulk member standing for an issuer
+      description: >-
+        Server-to-server endpoint. Sign a stable JSON payload with the program handoff signing secret to read
+        standing for every member linked to the issuer, or for a single externalUserId when one is supplied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StandingRequest"
+      responses:
+        "200":
+          description: Standing snapshot for the matched members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StandingResult"
+        "401":
+          description: Missing, expired, or invalid signature
+        "403":
+          description: Issuer or audience is not allowed for this program
   /events:
     post:
       summary: Ingest a customer-side program metric event
-      description: Customers use this server-to-server endpoint to send sales, usage, discount redemption, page views, or manual proof into Boomin. The Worker hashes the bearer key before proxying to Xano.
-      security:
-        - bearerAuth: []
+      description: >-
+        Server-to-server endpoint to send sales, usage, referrals, page views, or manual proof into Boomin.
+        Sign the stable JSON body with the program handoff signing secret and send the issuer and signature
+        headers. Retries that reuse the same event_id are deduplicated.
+      parameters:
+        - in: header
+          name: X-Boomin-Issuer
+          required: true
+          schema:
+            type: string
+          description: Configured handoff issuer for this program.
+        - in: header
+          name: X-Boomin-Signature
+          required: true
+          schema:
+            type: string
+          description: Base64url HMAC-SHA256 over the stable JSON body. May be prefixed with "sha256=".
       requestBody:
         required: true
         content:
@@ -185,28 +250,36 @@ paths:
             schema:
               $ref: "#/components/schemas/ProgramMetricEventInput"
       responses:
-        "200":
-          description: Metric accepted or deduplicated
+        "201":
+          description: Metric recorded. Returns 200 instead when the event_id was already seen (deduplicated).
           content:
             application/json:
               schema:
-                type: object
-                required: [accepted, duplicate, metric_event_id, member_id, program_id]
-                properties:
-                  accepted:
-                    type: boolean
-                  duplicate:
-                    type: boolean
-                  metric_event_id:
-                    type: string
-                  member_id:
-                    type: string
-                  program_id:
-                    type: string
-                  campaign_id:
-                    type: string
+                allOf:
+                  - $ref: "#/components/schemas/PublicStanding"
+                  - type: object
+                    required: [success, duplicate]
+                    properties:
+                      success:
+                        type: boolean
+                      duplicate:
+                        type: boolean
+                      event:
+                        type: object
+                        additionalProperties: true
+                      member:
+                        type: object
+                        additionalProperties: true
+                      qualification:
+                        type: object
+                        nullable: true
+                        additionalProperties: true
+                      tier:
+                        type: object
+                        nullable: true
+                        additionalProperties: true
         "401":
-          description: Missing or invalid server key
+          description: Missing or invalid X-Boomin-Issuer / X-Boomin-Signature headers
 components:
   securitySchemes:
     bearerAuth:
@@ -271,9 +344,11 @@ components:
           enum: [pending, approved, rejected]
     ConnectConfig:
       type: object
-      required: [publicKey, programName, provider]
+      required: [publicKey, programId, programName]
       properties:
         publicKey:
+          type: string
+        brandId:
           type: string
         programId:
           type: string
@@ -281,16 +356,25 @@ components:
           type: string
         brandName:
           type: string
-        provider:
-          type: string
-          enum: [instagram]
-        defaultApprovalStatus:
-          type: string
-          enum: [pending, approved]
-        allowedOrigins:
+        allowedModes:
           type: array
           items:
             type: string
+            enum: [redirect, manual, popup]
+        oauth:
+          type: object
+          properties:
+            instagram:
+              type: boolean
+              description: Whether Instagram OAuth is configured for this Worker.
+        requiredChannels:
+          type: array
+          items:
+            type: string
+          description: Channels a member must connect before approval. Empty for referral-first programs.
+        defaultApprovalStatus:
+          type: string
+          enum: [pending, approved]
     ConnectSession:
       type: object
       required: [sessionId, authUrl, status]
@@ -370,25 +454,86 @@ components:
           additionalProperties: true
     ConnectStatus:
       type: object
-      required: [sessionId, status]
+      required: [sessionId, session_id, status]
+      description: >-
+        Session status enriched with the member's public standing when the session is linked to a member.
+        Standing fields are omitted for sessions that are not yet linked to a member.
       properties:
         sessionId:
           type: string
         session_id:
           type: string
         status:
+          $ref: "#/components/schemas/PublicProgramStatus"
+        rawStatus:
           $ref: "#/components/schemas/ConnectSessionStatus"
-        programId:
+        programStatus:
           type: string
-        programMemberId:
+          nullable: true
+          description: Member qualificationStatus when available.
+        referral:
+          $ref: "#/components/schemas/Referral"
+        referralCode:
           type: string
-        integrationId:
+          nullable: true
+        referralLink:
           type: string
-        memberStatus:
-          type: string
+          nullable: true
+        metrics:
+          $ref: "#/components/schemas/Metrics"
+        channelStatus:
+          $ref: "#/components/schemas/ChannelStatus"
         approvalStatus:
           type: string
           enum: [pending, approved, rejected]
+        qualificationStatus:
+          type: string
+          enum: [pending, qualified, not_qualified, grace]
+        requiredChannels:
+          type: array
+          items:
+            type: string
+        missingChannels:
+          type: array
+          items:
+            type: string
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/RequirementProgress"
+        rollups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rollup"
+        member:
+          type: object
+          nullable: true
+          additionalProperties: true
+        instagram:
+          type: object
+          nullable: true
+          additionalProperties: true
+        partnerConnection:
+          type: object
+          nullable: true
+          additionalProperties: true
+        username:
+          type: string
+          nullable: true
+        qualification:
+          type: object
+          nullable: true
+          additionalProperties: true
+        tier:
+          type: object
+          nullable: true
+          additionalProperties: true
+        errorCode:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
     ConnectSessionStatus:
       type: string
       enum:
@@ -401,27 +546,32 @@ components:
         - failed
     ProgramMetricEventInput:
       type: object
-      required: [publicKey, event_id, event_type, creator_ref, metric_key]
+      required: [publicKey, event_id, partner_ref, metric_key, amount]
       properties:
         publicKey:
           type: string
+        programId:
+          type: string
+          description: Optional. Disambiguates when one publicKey maps to multiple programs.
         event_id:
           type: string
           description: Customer idempotency key. Retries with the same event_id do not double count.
         event_type:
           type: string
           examples: [sale.created, view.recorded, discount.redeemed]
-        creator_ref:
+        partner_ref:
           type: string
-          description: Program member id or creator referral code.
-        campaign_id:
-          type: string
+          description: Program member id, referral code, external user id, or partner email.
         metric_key:
           type: string
-          enum: [views, sales_count, revenue_cents, post_count, mention_count, sentiment_score, referral_count, manual_approval]
+          description: >-
+            Canonical keys: followers, views, post_count, link_clicks, referral_count, gmv_cents, sales_count,
+            product_usage_count, channel_connected, manual_approval. Custom keys are accepted; signups and
+            signup_count are normalized to referral_count.
+          examples: [sales_count, referral_count, link_clicks, gmv_cents]
         amount:
-          type: number
-          default: 1
+          type: integer
+          description: Integer metric amount (for example a count, or cents for gmv_cents).
         currency:
           type: string
           examples: [usd]
@@ -431,6 +581,310 @@ components:
         metadata:
           type: object
           additionalProperties: true
+    PublicProgramStatus:
+      type: string
+      description: Derived public status for a member in a program.
+      enum: [joined, needs_instagram, needs_channel, pending_approval, approved, rejected, qualified, not_qualified, grace, failed]
+    Referral:
+      type: object
+      required: [code, url, active]
+      properties:
+        code:
+          type: string
+          nullable: true
+        url:
+          type: string
+        active:
+          type: boolean
+    Metrics:
+      type: object
+      description: Aggregated rollup totals. signups counts referral_count (signup aliases are normalized).
+      properties:
+        linkClicks:
+          type: integer
+        signups:
+          type: integer
+        sales:
+          type: integer
+        gmvCents:
+          type: integer
+        productUsage:
+          type: integer
+    ChannelStatus:
+      type: object
+      properties:
+        required:
+          type: array
+          items:
+            type: string
+        connected:
+          type: array
+          items:
+            type: string
+        missing:
+          type: array
+          items:
+            type: string
+        instagram:
+          type: string
+          enum: [connected, required, optional]
+    Rollup:
+      type: object
+      properties:
+        metricKey:
+          type: string
+        windowKey:
+          type: string
+        total:
+          type: number
+        count:
+          type: number
+        maxValue:
+          type: number
+        lastValue:
+          type: number
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    RequirementProgress:
+      type: object
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+        scopeId:
+          type: string
+        metricKey:
+          type: string
+        operator:
+          type: string
+          enum: [gte, lte, eq, neq, exists]
+        threshold:
+          type: integer
+          nullable: true
+        windowDays:
+          type: integer
+          nullable: true
+        required:
+          type: boolean
+        weight:
+          type: integer
+        status:
+          type: string
+          enum: [met, failed, pending]
+    PublicStanding:
+      type: object
+      description: Canonical member standing block emitted by serializeMemberStanding.
+      required: [status, referral, metrics, approvalStatus, qualificationStatus, requiredChannels, missingChannels, channelStatus, requirements, rollups]
+      properties:
+        status:
+          $ref: "#/components/schemas/PublicProgramStatus"
+        referral:
+          $ref: "#/components/schemas/Referral"
+        metrics:
+          $ref: "#/components/schemas/Metrics"
+        approvalStatus:
+          type: string
+          enum: [pending, approved, rejected]
+        qualificationStatus:
+          type: string
+          enum: [pending, qualified, not_qualified, grace]
+        requiredChannels:
+          type: array
+          items:
+            type: string
+        missingChannels:
+          type: array
+          items:
+            type: string
+        channelStatus:
+          $ref: "#/components/schemas/ChannelStatus"
+        requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/RequirementProgress"
+        rollups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rollup"
+    JoinInput:
+      type: object
+      required: [publicKey]
+      properties:
+        publicKey:
+          type: string
+        programId:
+          type: string
+        email:
+          type: string
+          format: email
+          description: Required unless a verified partner bearer token is supplied.
+        name:
+          type: string
+        phone:
+          type: string
+        referralCode:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    JoinResult:
+      allOf:
+        - $ref: "#/components/schemas/PublicStanding"
+        - type: object
+          properties:
+            partner:
+              type: object
+              additionalProperties: true
+            member:
+              type: object
+              additionalProperties: true
+            referralCode:
+              type: string
+              nullable: true
+            referralLink:
+              type: string
+            qualification:
+              type: object
+              nullable: true
+              additionalProperties: true
+            tier:
+              type: object
+              nullable: true
+              additionalProperties: true
+            instagram:
+              type: object
+              nullable: true
+              additionalProperties: true
+    StandingPayload:
+      type: object
+      required: [iss, aud, iat, exp, nonce, publicKey, programId]
+      properties:
+        iss:
+          type: string
+        aud:
+          type: string
+        iat:
+          type: integer
+        exp:
+          type: integer
+        nonce:
+          type: string
+        publicKey:
+          type: string
+        programId:
+          type: string
+        externalUserId:
+          type: string
+          description: Optional. Restricts the response to a single linked member.
+    StandingRequest:
+      type: object
+      required: [payload, signature]
+      properties:
+        payload:
+          $ref: "#/components/schemas/StandingPayload"
+        signature:
+          type: string
+          description: Base64url HMAC-SHA256 signature over the stable JSON payload.
+    StandingPartner:
+      type: object
+      properties:
+        partner:
+          type: object
+          additionalProperties: true
+        externalIdentity:
+          type: object
+          nullable: true
+          additionalProperties: true
+        member:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: "#/components/schemas/PublicProgramStatus"
+        referralCode:
+          type: string
+          nullable: true
+        referralLink:
+          type: string
+        referral:
+          $ref: "#/components/schemas/Referral"
+        metrics:
+          $ref: "#/components/schemas/Metrics"
+        approvalStatus:
+          type: string
+          enum: [pending, approved, rejected]
+        qualificationStatus:
+          type: string
+          enum: [pending, qualified, not_qualified, grace]
+        requiredChannels:
+          type: array
+          items:
+            type: string
+        missingChannels:
+          type: array
+          items:
+            type: string
+        channelStatus:
+          $ref: "#/components/schemas/ChannelStatus"
+        instagram:
+          type: object
+          nullable: true
+          additionalProperties: true
+        partnerConnection:
+          type: object
+          nullable: true
+          additionalProperties: true
+        tier:
+          type: object
+          nullable: true
+          additionalProperties: true
+        qualification:
+          type: object
+          nullable: true
+          additionalProperties: true
+        rollups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Rollup"
+    StandingTotals:
+      type: object
+      properties:
+        total:
+          type: integer
+        pending:
+          type: integer
+        approved:
+          type: integer
+        rejected:
+          type: integer
+        qualified:
+          type: integer
+        grace:
+          type: integer
+        notQualified:
+          type: integer
+        connected:
+          type: integer
+    StandingResult:
+      type: object
+      required: [programId, brandId, requiredChannels, partners, totals]
+      properties:
+        programId:
+          type: string
+        brandId:
+          type: string
+        requiredChannels:
+          type: array
+          items:
+            type: string
+        partners:
+          type: array
+          items:
+            $ref: "#/components/schemas/StandingPartner"
+        totals:
+          $ref: "#/components/schemas/StandingTotals"
     OutboundWebhookEvent:
       type: object
       required: [event_id, event_type, payload]
