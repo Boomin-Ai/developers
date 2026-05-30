@@ -28,13 +28,6 @@ npx @boomin/cli@latest skill install --target claude
 npx @boomin/cli@latest skill install --target codex
 ```
 
-Local stdio MCP is a separate transport for clients that prefer process-based servers:
-
-```bash
-npx @boomin/mcp
-npx @boomin/cli mcp
-```
-
 ## How auth works
 
 There are two supported paths:
@@ -49,25 +42,6 @@ Both paths end with the same scoped platform token model. Tokens are revocable, 
 `Referral Program Installer` is the default pack. It can diagnose setup, scaffold referral-first routes, verify install, read partner standing, and record a test event.
 
 `Program Operator` is admin-only and opt-in. It can update required channels, referral settings, program requirements, tiers, and run evaluation.
-
-## Local config
-
-```json
-{
-  "mcpServers": {
-    "boomin": {
-      "command": "npx",
-      "args": ["@boomin/mcp"],
-      "env": {
-        "BOOMIN_PLATFORM_TOKEN": "sk_boomin_live_...",
-        "BOOMIN_MCP_SKILL_PACKS": "referral_installer"
-      }
-    }
-  }
-}
-```
-
-Use `referral_installer,program_operator` only for admin-approved agents.
 
 ## Tools
 
