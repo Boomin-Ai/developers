@@ -125,3 +125,38 @@ Signed handoff responses and standing responses include a stable referral surfac
 ```
 
 If a program requires Instagram, `missingChannels` includes `instagram` until the user connects it. Referral links still exist before channel connection.
+
+## Channel requirements drive the flow
+
+The handoff response's `status` is computed from the surface's `requiredChannels`:
+
+- `requiredChannels: ["instagram"]` — a member without a connected Instagram gets `status: "needs_instagram"`. Send them through the channel connect step before treating them as pending.
+- `requiredChannels: []` — the Instagram step is **skipped entirely** and members land at `pending_approval` with no connected channel.
+
+A surface created by `handoff provision` starts with `requiredChannels: []`. If your program expects creators to connect Instagram, set it explicitly after provisioning with the Platform API (or the `Program Operator` MCP pack):
+
+```bash
+curl -X POST https://api.boomin.ai/v1/platform/programs/connect-config/update \
+  -H "Content-Type: application/json" \
+  -d '{ "token": "sk_boomin_live_...", "programId": "<programId>", "requiredChannels": ["instagram"] }'
+```
+
+Do not show "Instagram is connected" copy on `pending_approval` alone — check the member's connection state. With `requiredChannels` set this cannot normally diverge, but belt-and-suspenders UI copy stays honest.
+
+## Referral link base
+
+`referral.url` is built from the surface's referral base. If unset it falls back to `https://boomin.ai/r/<code>`, which is **not** your app's click tracker — point it at the click-through route on your own domain (the `/r/[code]` route the referral scaffold generates) via connect-config metadata:
+
+```bash
+curl -X POST https://api.boomin.ai/v1/platform/programs/connect-config/update \
+  -H "Content-Type: application/json" \
+  -d '{ "token": "sk_boomin_live_...", "programId": "<programId>", "metadata": { "referralBaseUrl": "https://your-app.com/r" } }'
+```
+
+`npx @boomin/cli doctor` warns when the referral route, referral base, or destination env are missing.
+
+Keeping the link on your domain is deliberate: affiliates share it in Instagram bios, Telegram, and Discord, and a brand-domain URL is what people trust enough to click. The route works from any of those — it is a plain HTTP redirect that records the click server-side with your signing secret, so no cookie or JavaScript is required at click time.
+
+## Your app appears as a channel
+
+Provisioning a handoff config for a real issuer automatically installs your app as a channel on that brand's Channels page in Boomin, with live program metrics (clicks, signups, GMV, member counts). Smoke/test issuers (`.local`, `.invalid`, `.test`, `.example`) are ignored.
