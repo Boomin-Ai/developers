@@ -18,7 +18,12 @@ npx @boomin/cli doctor
 
 The scaffold creates a signed handoff join route, a current-user partner status route, a `/r/[code]` referral redirect tracker, and a `/partner` page with referral link, copy button, metrics, approval state, qualification state, and optional channel connect action.
 
-Referral-only programs use `requiredChannels: []`, so the user can receive their referral link immediately. Instagram is an optional channel requirement, not a dependency of every program.
+Referral-only programs use `requiredChannels: []`, so the user can receive their referral link immediately. Instagram is an optional channel requirement, not a dependency of every program. Two settings decide the flow — set them deliberately, then confirm with `npx @boomin/cli doctor`:
+
+- `requiredChannels: ["instagram"]` holds members at `needs_instagram` until they connect; `[]` skips the Instagram step entirely. Provisioned surfaces start at `[]`.
+- The referral base must point at your `/r/[code]` route, or `referral.url` falls back to a `boomin.ai` link that is not your tracker.
+
+Both are covered in [Signed handoff](/creator-connect/signed-handoff/).
 
 Agent install path:
 
