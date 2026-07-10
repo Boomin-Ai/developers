@@ -5,14 +5,18 @@ Boomin docs: https://developers.boomin.ai
 Core surfaces:
 - Browser SDK: `@boomin/connect`; CLI: `@boomin/cli`
 - Install: `npm install @boomin/connect @boomin/server`
-- Initialize app config: `npx @boomin/cli init`
+- Initialize app config: `npx @boomin/cli init` (`--list` lists the program on the public Connect Discover feed; default private)
 - Signed handoff scaffold: `npx @boomin/cli handoff init --framework next --auth custom`
+- Handoff secret provisioning: `npx @boomin/cli handoff provision` (`--rotate` to rotate)
 - Referral-first scaffold: `npx @boomin/cli referral init --framework next --auth custom --write`
 - Agent skill install: `npx @boomin/cli@latest skill install`
 - MCP hosted install: `npx @boomin/cli@latest mcp install`
 - MCP manual hosted install: `claude mcp add --transport http boomin https://mcp.boomin.ai/mcp`
 - MCP local stdio install: `npx @boomin/mcp` or `npx @boomin/cli mcp`
 - Creator Connect API: https://api.boomin.ai/v1/connect
+- Public Discover feed (unauthenticated, listed programs only): GET https://api.boomin.ai/v1/connect/discover
+- Hosted brand dashboard: boomin.ai -> Partners (members, applications inbox, Discover listing toggle, verified metrics)
+- Hosted creator surface: boomin.ai/connect (browse Discover, apply, referral links)
 - Platform API: https://api.boomin.ai/v1/platform
 - Connect OpenAPI: https://developers.boomin.ai/openapi/connect.yaml
 - Platform OpenAPI: https://developers.boomin.ai/openapi/platform.yaml
@@ -26,6 +30,14 @@ Recommended Creator Connect flow:
 3. `Boomin.verifyOtp({ email, code })`
 4. `Boomin.connectInstagram({ requireCreator: true })`
 5. `Boomin.getConnectStatus(sessionId)`
+
+Verified launch quickstart (Next.js, custom auth):
+1. `npx @boomin/cli init`
+2. `npx @boomin/cli referral init --framework next --auth custom --write` (wire getCurrentUser to your auth)
+3. `npx @boomin/cli handoff provision`
+4. `npx @boomin/cli doctor`
+
+Pricing: billed on monthly ACTIVE partners (>=1 tracked event — click or post — that calendar month; dormant partners always free). Free up to 10 active, Starter $79/mo up to 25, Growth $299/mo up to 100, Scale $999/mo up to 500, beyond that contact. Views are never billed. Metrics are OAuth-verified.
 
 Recommended signed handoff flow for apps with existing users:
 1. Install `@boomin/server` on the server.
@@ -64,6 +76,9 @@ MCP skill packs:
 
 Key docs:
 - Quickstart: https://developers.boomin.ai/quickstart/
+- Pricing: https://developers.boomin.ai/pricing/
+- Discover listing: https://developers.boomin.ai/partner-programs/discover/
+- In-app dashboards: https://developers.boomin.ai/partner-programs/dashboard/
 - Browser SDK: https://developers.boomin.ai/creator-connect/browser-sdk/
 - Account-first flow: https://developers.boomin.ai/creator-connect/account-first/
 - Signed handoff: https://developers.boomin.ai/creator-connect/signed-handoff/

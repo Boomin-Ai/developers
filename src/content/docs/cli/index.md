@@ -34,7 +34,28 @@ npx @boomin/cli init --yes
 npx @boomin/cli init --dry-run
 npx @boomin/cli init --origin http://localhost:3000
 npx @boomin/cli init --program-name "Launch Creator Program"
+npx @boomin/cli init --list
 ```
+
+`--list` lists the program on Boomin Connect's public [Discover feed](/partner-programs/discover/). Without the flag, interactive `init` asks and defaults to private; a non-interactive `init` never lists.
+
+## Referral scaffold and handoff
+
+```bash
+npx @boomin/cli referral init --framework next --auth custom --write
+npx @boomin/cli handoff provision
+```
+
+`referral init` generates the partner join/status routes, the `/r/[code]` redirect tracker, and a starter `/partner` page. `handoff provision` mints the program's handoff signing secret and writes it to `.env.local` (`--rotate` mints a new one and invalidates the old).
+
+## Doctor
+
+```bash
+npx @boomin/cli doctor
+npx @boomin/cli doctor --json
+```
+
+`doctor` checks login, env, handoff config, and referral-route readiness, and prints a fix command for anything that fails.
 
 ## Status and logout
 

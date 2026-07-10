@@ -9,6 +9,10 @@ description: What is live now and what comes next.
 - Account-first Creator Connect.
 - Email OTP before Instagram OAuth.
 - Pending approval and admin approve/reject.
+- Referral-first scaffold (`referral init`) and signed handoff provisioning (`handoff provision`).
+- Opt-in Discover listing (`--list`) with the public feed at `GET /v1/connect/discover`.
+- Hosted Partners dashboard for brands and Connect surface for creators at `boomin.ai`.
+- Plans billed on monthly active partners — first 10 active creators free ([Pricing](/pricing/)).
 - Scoped platform tokens.
 - CLI token management and smoke tests.
 - OpenAPI docs for current Connect and Platform APIs.

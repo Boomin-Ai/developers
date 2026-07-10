@@ -75,12 +75,26 @@ Handoff payloads are HMAC-SHA256 signed stable JSON, expire quickly, use one-tim
 
 ## Referral-first install path
 
-When the installer app already has auth, prefer the referral scaffold:
+When the installer app already has auth, prefer the referral scaffold. Verified launch sequence:
 
 ```bash
-npx @boomin/cli referral init --framework next --auth clerk --write
+npx @boomin/cli init
+npx @boomin/cli referral init --framework next --auth custom --write
+npx @boomin/cli handoff provision
 npx @boomin/cli doctor
 ```
+
+`init --list` (or answering yes to the interactive prompt) lists the program on Boomin Connect's public Discover feed; the default is private. With `--auth custom`, wire the generated `getCurrentUser` to your auth; `clerk` and `supabase` are prewired. `handoff provision` mints the HMAC signing secret and writes it to `.env.local` (`--rotate` invalidates the old secret). The join call creates the partner, program member, and referral code; clicks on `/r/CODE` are tracked as link clicks in standing metrics.
+
+## Discover feed and hosted surfaces
+
+- `GET https://api.boomin.ai/v1/connect/discover` — public, unauthenticated feed of listed programs (display-safe program cards + requirements summary; offset-paginated, limit max 50).
+- Creators browse and apply at `boomin.ai/connect`, then track applications and referral links there. A Partners tab appears in a creator's workspace once a program approves them.
+- Brands operate programs at `boomin.ai` under Partners: active partners + views this month, member table with OAuth-verified socials, applications inbox (approve/reject), and a "List on Connect discover" toggle.
+
+## Pricing
+
+Billed on monthly ACTIVE partners only: a partner is active in a calendar month when they drove >=1 tracked event (referral-link click or tracked post) that month. Dormant partners are always free. Tiers: Free up to 10 active, Starter $79/mo up to 25, Growth $299/mo up to 100, Scale $999/mo up to 500, beyond that contact. Views are never billed — they are OAuth-verified value metrics, not billing metrics.
 
 ## Boomin MCP
 
