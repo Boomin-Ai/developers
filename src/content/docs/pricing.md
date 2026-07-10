@@ -17,7 +17,7 @@ Partner programs are billed on **monthly active partners** — nothing else.
 
 ## What counts as active
 
-A partner is **active** in a calendar month when they drove at least one tracked event that month — a referral-link click or a tracked post. Partners with no tracked events that month are dormant, and **dormant partners are always free**, no matter how many are enrolled in your program.
+A partner is **active** in a calendar month when you've **approved** them into your program and they drove at least one tracked event that month — a referral-link click or a tracked post. Pending applicants never count, even if their links are already getting clicks, and partners with no tracked events that month are dormant. **Dormant partners and pending applicants are always free**, no matter how many are enrolled in or applying to your program.
 
 - Views are **never billed**. They are a value metric, not a billing metric.
 - Enrollment is never billed. A program with 5,000 enrolled partners and 8 active ones is free.
