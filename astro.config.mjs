@@ -25,7 +25,15 @@ export default defineConfig({
           items: [
             { label: "Overview", slug: "index" },
             { label: "Quickstart", slug: "quickstart" },
+            { label: "Pricing", slug: "pricing" },
             { label: "Roadmap", slug: "roadmap" }
+          ]
+        },
+        {
+          label: "Partner Programs",
+          items: [
+            { label: "Discover Listing", slug: "partner-programs/discover" },
+            { label: "In-app Dashboards", slug: "partner-programs/dashboard" }
           ]
         },
         {

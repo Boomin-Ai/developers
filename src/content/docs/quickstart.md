@@ -12,11 +12,17 @@ For apps that already have users, start here:
 ```bash
 npm install @boomin/connect @boomin/server
 npx @boomin/cli init
-npx @boomin/cli referral init --framework next --auth clerk --write
+npx @boomin/cli referral init --framework next --auth custom --write
+npx @boomin/cli handoff provision
 npx @boomin/cli doctor
 ```
 
-The scaffold creates a signed handoff join route, a current-user partner status route, a `/r/[code]` referral redirect tracker, and a `/partner` page with referral link, copy button, metrics, approval state, qualification state, and optional channel connect action.
+- `init` opens Boomin in the browser, logs you in, creates or selects a program, and writes `.env.local`. Add `--list` to list the program on Boomin Connect's public [Discover feed](/partner-programs/discover/); the default is private.
+- `referral init` scaffolds `app/api/boomin/partner/join` and `status` routes, an `app/r/[code]` referral redirect tracker, and an `app/partner` page with referral link, copy button, metrics, approval state, qualification state, and optional channel connect action. With `--auth custom`, wire the generated `getCurrentUser` to your auth; `clerk` and `supabase` are prewired.
+- `handoff provision` mints the program's handoff signing secret and saves it to `.env.local` so the join route can sign your logged-in users.
+- `doctor` verifies the whole install — env, handoff config, referral routes.
+
+When a user clicks join on `/partner`, Boomin creates the partner, the program member, and their referral code in one call. Clicks on `/r/CODE` are tracked from then on — standing metrics show them as link clicks on the partner page and in the [Partners dashboard](/partner-programs/dashboard/).
 
 Referral-only programs use `requiredChannels: []`, so the user can receive their referral link immediately. Instagram is an optional channel requirement, not a dependency of every program. Two settings decide the flow — set them deliberately, then confirm with `npx @boomin/cli doctor`:
 
@@ -33,7 +39,7 @@ npx @boomin/cli@latest mcp install
 npx @boomin/cli@latest doctor
 ```
 
-Restart Claude Code or Codex after install so the Boomin skill and MCP tools are loaded. Use the default `Referral Program Installer` MCP pack for app scaffolding. Grant `Program Operator` only when the agent should change program requirements, tiers, channels, or referral settings.
+Restart Claude Code or Codex after install so the Boomin skill and MCP tools are loaded. The whole referral-first install works with an AI agent driving it end to end. Use the default `Referral Program Installer` MCP pack for app scaffolding. Grant `Program Operator` only when the agent should change program requirements, tiers, channels, or referral settings.
 
 ## Install
 
@@ -117,8 +123,8 @@ Use platform smoke only with a private platform token. Do not put `sk_boomin_liv
 Use Signed Handoff instead of asking for a second creator email OTP:
 
 ```bash
-npx @boomin/cli handoff init --framework next --auth custom
-npx @boomin/cli referral init --framework next --auth custom
+npx @boomin/cli referral init --framework next --auth custom --write
+npx @boomin/cli handoff provision
 ```
 
 Your server signs the logged-in user, Boomin links that external user to the program, then Instagram OAuth starts from the same durable session model.
