@@ -35,7 +35,7 @@ npx @boomin/cli init --program-name "Launch Partners" --yes
 ensures a [Partner Connect](/partner-connect/browser-sdk/) surface exists,
 appends local origins, and writes `.env.local`:
 
-```env
+```ini
 VITE_BOOMIN_PUBLIC_KEY=pk_live_...
 VITE_BOOMIN_PROGRAM_ID=...
 VITE_BOOMIN_API_BASE=https://api.boomin.ai/v1/connect
