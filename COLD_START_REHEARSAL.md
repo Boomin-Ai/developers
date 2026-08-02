@@ -14,22 +14,29 @@ published docs + CLI + SDK, with zero help.
 
 ## VERDICT: **NO.**
 
-A stranger following the published docs would not reach step 1 of the distribution flow, because
-**the published docs do not contain the distribution flow.** They document a different product
-(Creator Connect referral programs). Even after handing the stranger the unpublished CLI and SDK,
-the run dies twice more on things that have no CLI, SDK, or documentation surface at all: **funding a
-funded distribution**, and **configuring the payout rail + payout rules** that make `payout run` and
-`payout export` return anything but zero.
+> **Verdict revised 2026-08-02 after B1 was retracted.** The original verdict rested partly on a
+> false premise (that the docs omit the distribution flow — they do not; see B1). **The verdict is
+> still NO**, but for narrower and more tractable reasons: the packages are unpublished, and three
+> steps of the flow have no CLI/SDK surface at all.
+
+A stranger cannot complete the run today because **nothing is published to npm**, and because the
+run dies at three points that have no CLI, SDK, or documented surface: **funding a funded
+distribution**, **creating a payout rail**, and **creating payout rules** — the last two being what
+make `payout run` and `payout export` return anything but zero.
 
 **Three things must change before the run is attemptable:**
 
 1. Publish `@boomin/sdk@1.0.0-beta.1`, `@boomin/cli@0.3.0`, `@boomin/mcp` to npm. (`npx @boomin/cli`
    today resolves to **0.2.0**, which has no `distribution`, `payout`, `webhook`, `enrollment`,
-   `partnership`, or `events` commands at all.)
-2. Ship a Platform v1 quickstart page + regenerate `public/openapi/platform.yaml` from the v1 router.
-   Today the published OpenAPI describes 10 legacy RPC paths and none of the 60+ v1 REST routes.
-3. Give funding, payout rails, and payout rules a v1/CLI surface — or make `validate` and
+   `partnership`, or `events` commands at all — verified by unpacking the published tarball.)
+2. Give funding, payout rails, and payout rules a v1/CLI surface — or make `validate` and
    `payout run` say what is missing instead of returning "ready" and `0`.
+3. Fix the **silent camelCase-drop class** (see the Traps section) — it is the single highest-value
+   fix in this document, because it fails *quietly* and one of its instances silently subscribes a
+   webhook endpoint to every event type.
+
+Regenerating `public/openapi/platform.yaml` from the v1 router is also needed, but is a PAPERCUT
+rather than a blocker now that the prose docs cover the flow.
 
 ---
 
@@ -63,7 +70,26 @@ for the accepted event types). Every one of those is a finding below.
 
 ## BLOCKERS
 
-### B1 — The published docs contain zero coverage of the entire distribution flow
+### B1 — ~~The published docs contain zero coverage of the entire distribution flow~~ **RETRACTED — INVALID**
+
+> **CORRECTION (verified 2026-08-02, after this rehearsal was written).** This finding is **wrong**,
+> and the error was in the rehearsal method, not the docs. The rehearsal grepped a **stale local
+> checkout** of `developers/` that sat one commit behind `origin/main`. The distribution docs had
+> already merged as `2c4cde6` ("Developer docs v1: distribution model, SDK reference, CLI 0.3.0")
+> at 13:13 local time. On current `main`, `grep -ril distribution src/content/docs/` returns
+> **28 files**, including `quickstart.md` (which references `distributions.launch` four times),
+> the full `sdk/resources/*` tree, `distributions/*`, `concepts/model.md`, and `sdk/webhooks.md`.
+>
+> **What survives from this finding:** `public/openapi/platform.yaml` really does describe only the
+> legacy RPC paths and not the v1 tree, and `roadmap.md` really does still list shipped items under
+> "Next." Those are downgraded to **PAPERCUT** (see P2 items below). The headline claim — that a
+> stranger cannot find the distribution flow in the docs — is **false**.
+>
+> **Method lesson, which is the more important finding:** a rehearsal that reads a local working
+> copy is testing *this machine*, not *the published artifact*. Any future cold-start rehearsal must
+> `git fetch && git status` every repo it reads, or better, read the deployed docs site over HTTP.
+
+**Original finding as written (retained for the record, but do not act on it):**
 
 **What the docs said:** the quickstart at `developers/src/content/docs/quickstart.md` is titled
 "Install `@boomin/connect`, initialize a program, and connect a creator." It covers referral
