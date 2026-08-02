@@ -130,9 +130,16 @@ Success responses are Stripe-style **bare objects** — the resource itself, not
 `{ distribution: {...} }`. Three deliberate exceptions:
 
 - `distributions.launch` → `{ distribution, status, operation }`, all **id strings**.
-- `distributions.pause/resume/cancel` and `deployments.pause/resume/cancel` →
+- `distributions.pause/resume/cancel` (and the deployment verbs on the API) →
   the bare resource **plus** an `operation` id alongside.
-- `webhooks.endpoints.*` → wrapped as `{ webhook_endpoint: { ... } }`.
+- `webhooks.endpoints.create/retrieve/update/rotateSecret` → wrapped as
+  `{ webhook_endpoint: { ... } }`.
+
+A handful of reads return the bare resource plus a companion field:
+`distributions.validate` adds `valid` and `errors`;
+`partnerships.retrieve` adds `enrollments`;
+`payouts.batches.retrieve` adds `items`;
+`performance.events.create` adds `duplicate` and `projected`.
 
 Lists are always `{ object: "list", data: [...], has_more: boolean }`.
 
@@ -146,7 +153,7 @@ Every non-2xx raises a subclass of `BoominError` carrying `code`, `status`,
 | Client | Methods |
 | --- | --- |
 | [`programs`](/sdk/resources/programs/) | `retrieve` `list` + nested `requirements` / `tiers` / `connectConfig` / `handoffConfig` |
-| [`partners`](/sdk/resources/partners/) | `retrieve` `list` |
+| [`partners`](/sdk/resources/partners/) | `retrieve` `list` — see the page: no `/partners` routes in this release |
 | [`partnerships`](/sdk/resources/partnerships/) | `list` `retrieve` `pause` `resume` `end` `updatePermissions` |
 | [`enrollments`](/sdk/resources/enrollments/) | `create` `retrieve` `list` `approve` `reject` `pause` `resume` |
 | [`distributions`](/sdk/resources/distributions/) | `create` `retrieve` `update` `list` `validate` `launch` `pause` `resume` `cancel` |
