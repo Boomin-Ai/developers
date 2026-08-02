@@ -3,7 +3,7 @@ title: Browser SDK
 description: Use @boomin/connect in a browser app or from the CDN.
 ---
 
-`@boomin/connect` is the customer-facing browser SDK for Creator Connect. It is intentionally UI-light: you bring the page, button, form, and styling; Boomin supplies the auth and program state.
+`@boomin/connect` is the customer-facing browser SDK for Partner Connect. It is intentionally UI-light: you bring the page, button, form, and styling; Boomin supplies the auth and program state.
 
 ## NPM import
 

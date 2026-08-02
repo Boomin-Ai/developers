@@ -3,28 +3,33 @@ title: Token Commands
 description: Create, list, revoke, and rotate private platform tokens.
 ---
 
-Platform tokens are private server-side credentials for agents and automation. They are different from Creator Connect public keys.
+Platform tokens are private server-side credentials for servers and agents. They
+are different from [Partner Connect](/partner-connect/browser-sdk/) public keys.
 
 :::danger
-Never put a `sk_boomin_live_...` token in browser code, mobile apps, or customer-visible HTML. Use public `pk_live_...` keys for browser Creator Connect.
+Never put a `sk_boomin_live_...` token in browser code, mobile apps, or
+customer-visible HTML. Browser code uses the public `pk_live_...` Partner
+Connect key.
 :::
 
 ## Create
 
 ```bash
 npx @boomin/cli token create \
-  --name "Unit Agent" \
-  --scopes org:read,units:read,units:create,units:delete
+  --name "Distribution Agent" \
+  --scopes org:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read
 ```
 
-The secret is shown once.
+The secret is shown once. Mint the narrowest key that does the job —
+`distributions:launch` is the scope that spends money, so keep it off keys that
+only read.
 
 Use `--save` only for local smoke testing:
 
 ```bash
 npx @boomin/cli token create \
   --name "Local Smoke" \
-  --scopes org:read,units:read,units:create,units:delete \
+  --scopes org:read,distributions:read,deployments:read \
   --save
 ```
 

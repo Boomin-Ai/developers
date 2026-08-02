@@ -1,89 +1,166 @@
 # Boomin Developers
 
-Boomin docs: https://developers.boomin.ai
+Boomin is programmable distribution infrastructure. Docs: https://developers.boomin.ai
 
-Core surfaces:
-- Browser SDK: `@boomin/connect`; CLI: `@boomin/cli`
-- Install: `npm install @boomin/connect @boomin/server`
-- Initialize app config: `npx @boomin/cli init` (`--list` lists the program on the public Connect Discover feed; default private)
-- Signed handoff scaffold: `npx @boomin/cli handoff init --framework next --auth custom`
-- Handoff secret provisioning: `npx @boomin/cli handoff provision` (`--rotate` to rotate)
-- Referral-first scaffold: `npx @boomin/cli referral init --framework next --auth custom --write`
-- Agent skill install: `npx @boomin/cli@latest skill install`
-- MCP hosted install: `npx @boomin/cli@latest mcp install`
-- MCP manual hosted install: `claude mcp add --transport http boomin https://mcp.boomin.ai/mcp`
-- MCP local stdio install: `npx @boomin/mcp` or `npx @boomin/cli mcp`
-- Creator Connect API: https://api.boomin.ai/v1/connect
+## The model
+
+Six nouns plus an Operation.
+
+- Partner — a durable identity capable of distributing value (creator, affiliate, agency, brand).
+- Partnership — the durable brand<->partner relationship. Exactly one per (brand, partner). Program-independent.
+- Enrollment — a partnership's participation in ONE program. Carries the program `referral_code`.
+- Distribution — INTENT: a coordinated objective. Never an execution mode. No kind column, no program column.
+- Deployment — EXECUTION: one concrete thing running somewhere. Stable `deployment_key`.
+- Performance — MEASUREMENT, always recorded against a deployment.
+- Operation — durable async work returned by EVERY external mutation.
+
+A Distribution is Boomin's PaymentIntent: declare the objective, Boomin fans it out into Deployments and reports back what actually happened.
+
+## Two rails
+
+Rail 1 — evergreen program, NO distribution: create a program, invite, approve. Each approved enrollment gets a `referral_code`; qualification requirements and tiers evaluate continuously; rewards accrue. Nothing is launched or budgeted. This is a complete product on its own.
+
+Rail 2 — a distribution layered on top: time-boxed, funded, measurable. One deployment per eligible enrollment, each with its OWN attribution instrument distinct from the program referral code. Conversions route by `deployment_id`, so two distributions sharing an enrollment credit separately. A funded budget draws down as rewards are granted and releases the unconsumed remainder on cancel.
+
+The rails compose. Program activity outside any distribution stays on the program rail permanently and keeps feeding qualification.
+
+## Wire contract (Platform API v1)
+
+- Base: https://api.boomin.ai/v1/platform
+- Auth: `Authorization: Bearer sk_boomin_live_...`. Bearer-only. No body token, no cookie session.
+- Brand: `Boomin-Brand: <id-or-slug>` for multi-brand orgs; default = the org's oldest brand.
+- Updates are POST (Stripe style), never PATCH.
+- `Idempotency-Key` on every mutation, including DELETE.
+- Success bodies are BARE top-level objects — the resource itself, not `{"distribution": {...}}`.
+- Lists: `{"object":"list","data":[...],"has_more":boolean}`; `?limit=` 1-100 (default 20), `?starting_after=<id>`.
+- Ids are prefixed on output (`dist_`, `dep_`, `enr_`, `pship_`, `ptnr_`, `conn_`, `prog_`, `op_`, `evt_`, `perf_`, `po_`, `pob_`, `we_`) and accepted with or without the prefix.
+- Errors: `{"error":{"code","message","param","request_id"}}`. Branch on `code`, not on message or status alone.
+- Auth runs BEFORE id resolution: an unauthenticated probe is always 401, never 404.
+
+Composite responses (the only ones that are not bare):
+- `POST /distributions/{id}/launch` -> 202 `{"distribution":"dist_...","status":"launching","operation":"op_..."}` — id STRINGS, never embedded objects, never a synchronous success.
+- `POST /distributions/{id}/pause|resume|cancel` and `POST /deployments/{id}/pause|resume|cancel` -> 202, the bare resource PLUS an `operation` id alongside.
+- `webhook_endpoints` create/retrieve/update/rotate_secret -> wrapped as `{"webhook_endpoint": {...}}`.
+
+## SDK
+
+`npm install @boomin/sdk` — fetch + WebCrypto only, zero dependencies. Node >= 18, Cloudflare Workers, Bun, Deno, edge.
+
+```js
+import Boomin from "@boomin/sdk";
+const boomin = new Boomin(process.env.BOOMIN_SECRET_KEY);
+```
+
+Twelve resource clients:
+- `programs` — retrieve, list + nested `requirements`, `tiers`, `connectConfig`, `handoffConfig`
+- `partners` — retrieve, list (NOTE: no `/v1/platform/partners` routes in this release; read partner identity off `partnerships`)
+- `partnerships` — list, retrieve, pause, resume, end, updatePermissions
+- `enrollments` — create (invite), retrieve, list, approve, reject, pause, resume
+- `distributions` — create, retrieve, update, list, validate, launch, pause, resume, cancel
+- `deployments` — retrieve, list (the pause/resume/cancel ROUTES are live; SDK methods are not)
+- `connections` — list, retrieve, revoke
+- `performance` — summary + `events.create`
+- `events` — list (the operational domain-event feed OUT)
+- `operations` — retrieve, list, wait
+- `webhooks` — `endpoints.create/retrieve/update/list/del/rotateSecret` + `constructEvent`
+- `payouts` — list, run, exportCsv, connectStatus + `batches.list/retrieve`
+
+`resume` is the canonical verb on every surface — never `unpause`.
+`programs.create` and `programs.update` exist on the client but have no route in this release; create programs from the CLI or the app.
+
+## Golden path
+
+1. `npx @boomin/cli login`
+2. `npx @boomin/cli init --program-name "Launch Partners" --yes`
+3. `npx @boomin/cli token create --name "Server" --scopes org:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write --save`
+4. `npm install @boomin/sdk`
+5. `boomin.enrollments.create({ program, email })` then `boomin.enrollments.approve(id)`
+6. `boomin.distributions.create({ name, objective, programs, budget: { mode: "funded", asset: "credit", total: 50000 } })`
+7. `boomin.distributions.validate(id)` -> check `valid` and `errors`
+8. `boomin.distributions.launch(id)` -> `{distribution, status:"launching", operation}`
+9. `boomin.operations.wait(accepted.operation, { timeout: 120000 })`
+10. `boomin.performance.events.create({ deployment, type, value_minor, idempotency_key })`
+11. `boomin.webhooks.endpoints.create({ url, enabled_events })` — signing secret shown ONCE
+12. `boomin.payouts.run({ period_start, period_end })` then `boomin.payouts.exportCsv({ period_start, period_end })`
+
+## Key facts that trip people up
+
+- `launch` is ALWAYS async and returns id strings. The operation is the progress surface.
+- `operations.wait()` resolves on ANY terminal status (succeeded | partial | failed | canceled) and does NOT throw on failure. It throws `operation_wait_timeout` only when your timeout elapses.
+- `constructEvent` is ASYNC (WebCrypto). Always `await` it, inside a try. Pass the RAW body — never JSON.parse first.
+- Webhook signature: `Boomin-Signature: t=<unix seconds>,v1=<hex hmac>`, HMAC-SHA256 over `${t}.${rawBody}`. Multiple `v1` entries appear during rotation. Default tolerance 300s.
+- Secret rotation keeps the PREVIOUS secret honored for a 24-hour overlap window; during it every delivery carries TWO `v1` entries. Do not chain two rotations inside 24h.
+- Webhook delivery: 6 attempts total (1 initial + 5 retries), backoff 30s -> 2m -> 8m -> 30m -> 30m, 10s per-attempt timeout, any 2xx is success. Ordering is NOT guaranteed; dedupe on `event.id`, order by `event.seq`.
+- A new webhook endpoint gets NO history backfill. Close gaps with `events.list({ startingAfter: seq })`.
+- Enrollments have TWO orthogonal fields: `approval_status` (pending|approved|rejected, moved only by approve/reject) and `status` (active|paused|archived, moved only by pause/resume). Rejection is NOT terminal.
+- Performance ingestion REQUIRES one of `idempotency_key` or `external_event_id`, else `performance_event_identity_required` (422).
+- Reward eligibility is resolved at the event's `occurred_at`, not at ingestion. Paused-period activity is permanently non-compensable.
+- Pausing does NOT dodge billing — links keep resolving. `partnership.end` or enrollment archive is the billing exit.
+- A funded launch that outruns the wallet parks the operation at `status:"waiting"`, `waiting_reason:"funding_required"`. Relaunching REUSES that waiting operation.
+- One live mutation per subject: a second launch/resume raises `operation_conflict` (409). Cancel runs on a separate control plane, so it can cancel a running launch.
+- Query params are camel->snake converted by the SDK (`startingAfter` -> `starting_after`). REQUEST BODIES ARE NOT — send `enabled_events`, `value_minor`, `period_start`, `referral_code`.
+- `events.list` pages FORWARD by ascending `seq`. Every other list pages backward by creation time.
+
+## Providers
+
+Instagram, TikTok, Meta Ads and the rest are INTERNAL ADAPTERS. They never appear in the public API as a resource, a parameter, or a route. You express intent through the deployment plan's `mode` / `medium` / `channel` / `format` and the registry resolves an adapter — or rejects the combination during `validate()` with `channel_type_not_yet_supported`.
+
+Exactly one adapter is registered today: the Boomin partnership adapter, supporting `partner` / `referral` / `boomin` / `referral_link`.
+
+## Other surfaces
+
+- Browser SDK: `@boomin/connect` — Partner Connect (OTP join, Instagram connect, approval status). Uses public `pk_live_...` keys.
+- Signed Handoff (`@boomin/server`, maintenance only) lets already-logged-in app users join without a second OTP.
+- CLI: `@boomin/cli` 0.3.0. Setup: `login`, `init`, `doctor`, `status`, `logout`, `scopes`, `token`, `platform smoke`, `referral init`, `handoff init|provision`, `mcp install`, `skill install`. Platform v1 groups: `distribution`, `enrollment`, `partnership`, `connection`, `payout`, `webhook`, `events`. Operation-returning commands poll to terminal by default; `--no-wait` skips.
+- MCP hosted install: `npx @boomin/cli@latest mcp install` or `claude mcp add --transport http boomin https://mcp.boomin.ai/mcp`
+- Partner Connect API: https://api.boomin.ai/v1/connect
 - Public Discover feed (unauthenticated, listed programs only): GET https://api.boomin.ai/v1/connect/discover
-- Hosted brand dashboard: boomin.ai -> Partners (members, applications inbox, Discover listing toggle, verified metrics)
-- Hosted creator surface: boomin.ai/connect (browse Discover, apply, referral links)
-- Platform API: https://api.boomin.ai/v1/platform
-- Connect OpenAPI: https://developers.boomin.ai/openapi/connect.yaml
-- Platform OpenAPI: https://developers.boomin.ai/openapi/platform.yaml
+- Hosted brand dashboard: boomin.ai -> Partners. Hosted partner surface: boomin.ai/connect
+- OpenAPI: https://developers.boomin.ai/openapi/platform.yaml and https://developers.boomin.ai/openapi/connect.yaml
 
-Use public `pk_live_...` keys in browser code for Creator Connect.
-Never expose private `sk_boomin_live_...` platform tokens in browser code.
+## Deprecated
 
-Recommended Creator Connect flow:
-1. `Boomin.init({ publicKey, programId, apiBase, redirectUri })`
-2. `Boomin.requestOtp({ email, name })`
-3. `Boomin.verifyOtp({ email, code })`
-4. `Boomin.connectInstagram({ requireCreator: true })`
-5. `Boomin.getConnectStatus(sessionId)`
+- `boominjs` — DEPRECATED. Use `@boomin/sdk` for the Platform API, or `@boomin/connect` for browser Partner Connect.
+- `@boomin/server` — MAINTENANCE ONLY. Still used by the generated Signed Handoff routes; new server integrations use `@boomin/sdk`.
+- "Creator Connect" is the old name for Partner Connect. Old `/creator-connect/*` doc paths 301 to `/partner-connect/*`.
 
-Verified launch quickstart (Next.js, custom auth):
-1. `npx @boomin/cli init`
-2. `npx @boomin/cli referral init --framework next --auth custom --write` (wire getCurrentUser to your auth)
-3. `npx @boomin/cli handoff provision`
-4. `npx @boomin/cli doctor`
+## Keys
 
-Pricing: billed on monthly ACTIVE partners (>=1 tracked event — click or post — that calendar month; dormant partners always free). Free up to 10 active, Starter $79/mo up to 25, Growth $299/mo up to 100, Scale $999/mo up to 500, beyond that contact. Views are never billed. Metrics are OAuth-verified.
+Public `pk_live_...` in browser code for Partner Connect. NEVER expose private `sk_boomin_live_...` platform keys in browser code, mobile bundles, or public repos.
 
-Recommended signed handoff flow for apps with existing users:
-1. Install `@boomin/server` on the server.
-2. Run `npx @boomin/cli referral init --framework next --auth clerk --write`.
-3. Return `{ externalUserId, email, name, metadata }` from your auth provider.
-4. Sign with `BOOMIN_HANDOFF_SIGNING_SECRET`.
-5. Show the generated `/partner` page with referral link, metrics, and optional Instagram connect.
+`sk_test_` / `pk_test_` are reserved and answer `test_mode_not_yet_available`. Test mode is not built; use `validate()` as the pre-launch dry run.
 
-Referral-first first value:
-1. User visits `/partner`.
-2. User clicks join.
-3. Server sends signed handoff to Boomin.
-4. Boomin returns `referral: { code, url, active }` and `metrics`.
-5. `/r/[code]` records `link_clicks` and redirects to the app destination with `?ref=<code>`.
+## Pricing
 
-CLI commands:
-- `npx @boomin/cli --help`
-- `npx @boomin/cli login`
-- `npx @boomin/cli init`
-- `npx @boomin/cli status --json`
-- `npx @boomin/cli scopes --json`
-- `npx @boomin/cli scopes explain units:create`
-- `npx @boomin/cli token create --name "Agent" --scopes org:read,units:read,units:create`
-- `npx @boomin/cli platform smoke --read-only --token sk_boomin_live_...`
-- `npx @boomin/cli platform smoke --write --cleanup --token sk_boomin_live_...`
-- `npx @boomin/cli platform smoke --all-scopes --cleanup --json`
-- `npx @boomin/cli handoff init --framework next --auth clerk`
-- `npx @boomin/cli referral init --framework next --auth clerk --write`
-- `npx @boomin/cli skill install`
-- `npx @boomin/cli mcp install`
-- `npx @boomin/cli doctor --json`
+Billed on monthly ACTIVE partners: approved AND at least one tracked event that calendar month. Dormant partners are always free. A partner in two programs counts ONCE. Free up to 10 active, Starter $79/mo up to 25, Growth $299/mo up to 100, Scale $999/mo up to 500, beyond that contact. Views are never billed. Metrics are OAuth-verified.
 
-MCP skill packs:
-- `Referral Program Installer` is default and can diagnose, scaffold, verify, read standing, and record test events.
-- `Program Operator` is admin-only and can update channels, requirements, tiers, referral settings, and evaluate programs.
+## Key docs
 
-Key docs:
 - Quickstart: https://developers.boomin.ai/quickstart/
-- Pricing: https://developers.boomin.ai/pricing/
-- Discover listing: https://developers.boomin.ai/partner-programs/discover/
-- In-app dashboards: https://developers.boomin.ai/partner-programs/dashboard/
-- Browser SDK: https://developers.boomin.ai/creator-connect/browser-sdk/
-- Account-first flow: https://developers.boomin.ai/creator-connect/account-first/
-- Signed handoff: https://developers.boomin.ai/creator-connect/signed-handoff/
+- The distribution model: https://developers.boomin.ai/concepts/model/
+- Authentication: https://developers.boomin.ai/concepts/authentication/
+- SDK install & client: https://developers.boomin.ai/sdk/
+- Errors: https://developers.boomin.ai/sdk/errors/
+- Receiving webhooks: https://developers.boomin.ai/sdk/webhooks/
+- Distributions: https://developers.boomin.ai/distributions/
+- Lifecycle & launching: https://developers.boomin.ai/distributions/lifecycle/
+- Deployments: https://developers.boomin.ai/distributions/deployments/
+- Budgets: https://developers.boomin.ai/distributions/budgets/
+- Performance: https://developers.boomin.ai/distributions/performance/
+- Payouts: https://developers.boomin.ai/distributions/payouts/
 - CLI guide: https://developers.boomin.ai/cli/
-- Platform API: https://developers.boomin.ai/platform-api/
-- MCP guide: https://developers.boomin.ai/cli/mcp/
+- CLI command reference: https://developers.boomin.ai/cli/reference/
+- Platform API v1: https://developers.boomin.ai/platform-api/
 - Scope reference: https://developers.boomin.ai/tokens-scopes/scopes/
 - API safety: https://developers.boomin.ai/tokens-scopes/safety/
+- Partner Connect browser SDK: https://developers.boomin.ai/partner-connect/browser-sdk/
+- Account-first flow: https://developers.boomin.ai/partner-connect/account-first/
+- Signed handoff: https://developers.boomin.ai/partner-connect/signed-handoff/
+- Discover listing: https://developers.boomin.ai/partner-programs/discover/
+- In-app dashboards: https://developers.boomin.ai/partner-programs/dashboard/
+- MCP guide: https://developers.boomin.ai/mcp/
+- Pricing: https://developers.boomin.ai/pricing/
+
+## Full docs
+
+https://developers.boomin.ai/llms-full.txt

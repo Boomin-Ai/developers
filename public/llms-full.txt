@@ -1,28 +1,570 @@
 # Boomin Full Agent Context
 
-Boomin lets customers build creator-program and marketing-distribution infrastructure without rebuilding email OTP, Instagram OAuth, creator approval queues, referral attribution, analytics plumbing, and scoped automation tokens.
+Boomin is programmable distribution infrastructure. It lets customers run partner
+distribution — enrollment, approval, referral attribution, coordinated launches,
+budgets, measurement, and payouts — without rebuilding email OTP, Instagram OAuth,
+approval queues, attribution plumbing, async execution machinery, or scoped
+automation credentials.
 
-## Package
+Docs: https://developers.boomin.ai
 
-```bash
-npm install @boomin/connect @boomin/server
-npx @boomin/cli init
-npx @boomin/cli handoff init --framework next --auth custom
-npx @boomin/cli referral init --framework next --auth custom --write
-npx @boomin/cli skill install
-npx @boomin/cli mcp install
-npx @boomin/cli doctor --json
+## Canonical model
+
+```
+Partner            durable identity capable of distributing value
+  Partnership      durable brand<->partner relationship (program-independent)
+    Enrollment     that partnership's participation in ONE program
+
+Distribution       intent — a coordinated objective. NEVER an execution mode.
+  Deployment       execution — one concrete thing running somewhere
+    Performance    measurement, recorded against the deployment
+
+Operation          durable async work for EVERY external mutation
+Connection         provider identity (owner: partner XOR brand) + per-partnership grants
 ```
 
-`npx @boomin/cli init` opens a browser login/signup flow, lets the developer select or create a Boomin organization and creator program, ensures a Creator Connect config exists, appends localhost origins, and writes `.env.local`:
+A Distribution is Boomin's PaymentIntent: declare the objective, Boomin fans it
+out into Deployments and reports back what actually happened.
+
+Distributions have no `kind` column and no `program` column. `subjects` (event,
+offer, resource) are descriptive context only — they never create or constrain a
+deployment and are excluded from `plan_hash`.
+
+## Two rails
+
+### Rail 1 — evergreen program, no distribution
+
+The classic referral/affiliate rail. Needs no distribution at all.
+
+1. Create a program, invite partners (`enrollments.create`), approve them.
+2. Each approved enrollment gets a program `referral_code` (unique per program).
+3. Qualification requirements and tiers evaluate continuously from tracked activity.
+4. Rewards and payouts accrue against the program.
+
+Nothing is launched. Nothing is budgeted. Activity is written as program metric
+events and feeds qualification and rewards.
+
+```js
+const enrollment = await boomin.enrollments.create({ program: "prog_...", email: "creator@example.com" });
+await boomin.enrollments.approve(enrollment.id);
+// enrollment.referral_code is live. That is the whole rail.
+```
+
+### Rail 2 — a distribution layered on top
+
+A time-boxed, funded, measurable push over the same partners.
+
+1. Create a distribution referencing one or more programs.
+2. `validate()`, then `launch()`.
+3. Boomin creates ONE deployment per eligible enrollment per planned slot, each
+   with its OWN attribution instrument, distinct from the program referral code.
+4. Conversions route by `deployment_id`, so two distributions sharing an
+   enrollment credit separately.
+5. A funded budget draws down as rewards are granted; the unconsumed remainder
+   is released on cancel or completion.
+
+```js
+const distribution = await boomin.distributions.create({
+  name: "Spring launch",
+  objective: "launch",
+  programs: ["prog_..."],
+  budget: { mode: "funded", asset: "credit", total: 100000 },
+});
+await boomin.distributions.validate(distribution.id);
+const { operation } = await boomin.distributions.launch(distribution.id);
+```
+
+The rails compose. Program activity outside any distribution stays on the program
+rail permanently — it is not migrated and it keeps feeding qualification.
+Distribution execution that is program-relevant PROJECTS into the program spine.
+
+## Enrollment state — two orthogonal fields
+
+| Field | Values | Moved by |
+| --- | --- | --- |
+| `approval_status` | pending, approved, rejected | approve() / reject() ONLY |
+| `status` | active, paused, archived | pause() / resume() ONLY |
+
+Approval commands never touch `status`. Pause/resume never touch
+`approval_status`. Rejection is NOT terminal — re-inviting resets approval to
+pending, and a rejected enrollment may be approved directly.
+
+`resume` is the canonical verb on every surface. There is no `unpause`.
+
+Approving the first enrollment activates the durable partnership. Partnership
+status is `pending` -> `active` -> (`paused`) -> `ended`; `end()` is terminal and
+never fires automatically.
+
+## Pausing, money, and event time
+
+Resolved at the event's `occurred_at`, never at ingestion:
+
+| While paused | Links resolve | Attribution | Rewards | Billing |
+| --- | --- | --- | --- | --- |
+| Enrollment paused | yes | continues | STOPS | continues |
+| Partnership paused | yes | continues | STOPS | continues |
+| Enrollment archived | code retained for history | — | stops | stops |
+| Partnership ended | — | — | stops | stops |
+
+Pausing never dodges the active-partner fee while the partner's links still
+resolve. `archive` and `partnership.end` are the billing exits.
+
+`partnership.pause` blocks NEW partner deployments across ALL programs, pauses
+existing ones via operations, and PRESERVES enrollments and connection grants
+untouched so resume is exact.
+
+## Platform API v1 — wire contract
+
+- Base: `https://api.boomin.ai/v1/platform`
+- Auth: `Authorization: Bearer sk_boomin_live_...`. Bearer-only — no body token, no cookie session.
+- Brand: `Boomin-Brand: <id-or-slug>` for multi-brand orgs; default = the org's oldest brand. Webhook endpoints are ORG-scoped, not brand-scoped.
+- Updates are POST (Stripe style), never PATCH.
+- `Idempotency-Key` on every mutation, including DELETE. Reusing a key with a different body is `idempotency_key_conflict` (409).
+- Success bodies are BARE top-level objects.
+- Lists: `{"object":"list","data":[...],"has_more":boolean}`. `?limit=` 1-100 (default 20), `?starting_after=<id>`.
+- Ids prefixed on output, accepted with or without prefix: `prog_` `ptnr_` `pship_` `enr_` `dist_` `dep_` `conn_` `op_` `evt_` `perf_` `po_` `pob_` `we_`.
+- A WRONG prefix for the resource returns that resource's typed 404 — existence is never leaked across tenants.
+- Errors: `{"error":{"code","message","param","request_id"}}`. `request_id` is also the `Request-Id` header.
+- Auth runs BEFORE id resolution: an unauthenticated probe is always 401, never 404.
+- The whole surface sits behind an operator kill switch -> `developer_access_paused` (503).
+
+### The only non-bare responses
+
+```jsonc
+// POST /distributions/{id}/launch -> 202. ID STRINGS, never embedded objects.
+{ "distribution": "dist_...", "status": "launching", "operation": "op_..." }
+
+// POST /distributions/{id}/pause|resume|cancel  -> 202
+// POST /deployments/{id}/pause|resume|cancel    -> 202
+{ "id": "dist_...", "object": "distribution", /* … */ "operation": "op_..." }
+
+// webhook_endpoints create/retrieve/update/rotate_secret
+{ "webhook_endpoint": { "id": "we_...", /* … */ } }
+```
+
+Reads that add a companion field alongside the bare resource:
+`distributions.validate` adds `valid` + `errors`; `partnerships.retrieve` adds
+`enrollments`; `payouts.batches.retrieve` adds `items`;
+`performance.events.create` adds `duplicate` + `projected`;
+`payouts.exportCsv` adds `items`, `skipped`, `export_file_key`, `download_url`.
+
+## SDK
+
+```bash
+npm install @boomin/sdk
+```
+
+```js
+import Boomin from "@boomin/sdk";
+
+const boomin = new Boomin(process.env.BOOMIN_SECRET_KEY, {
+  baseUrl: "https://api.boomin.ai", // ORIGIN — the SDK appends /v1/platform
+  brand: "brand_123",
+  maxRetries: 2,
+  timeout: 30000,
+});
+```
+
+fetch + WebCrypto only, zero dependencies, no Node builtins: Node >= 18,
+Cloudflare Workers, Bun, Deno, edge.
+
+Per-call RequestOptions is the TRAILING argument of every method:
+`{ idempotencyKey, brand, timeout, maxRetries }`. Methods that take a body are
+`(id, params, options)`; verbs with no body take `{}` or `null` for params.
+
+Query params are camel->snake converted (`startingAfter` -> `starting_after`).
+REQUEST BODIES ARE NOT — send `enabled_events`, `value_minor`, `period_start`,
+`referral_code` exactly as the API names them.
+
+Lists resolve one page and are ALSO async-iterable across every page:
+
+```js
+const page = await boomin.partnerships.list({ limit: 20 });      // one page
+for await (const e of boomin.enrollments.list({ program })) { }  // every page
+```
+
+### The 12 clients
+
+- `programs` — `retrieve` `list`; nested `requirements` / `tiers` (create, retrieve, update, list, del) and `connectConfig` / `handoffConfig` (retrieve, update). NOTE: `create`/`update` exist on the client but have NO route in this release.
+- `partners` — `retrieve` `list`. NOTE: no `/v1/platform/partners` routes in this release. Read partner identity off `partnerships` (which embeds `partner: {id, name, email}`).
+- `partnerships` — `list` `retrieve` `pause` `resume` `end` `updatePermissions`
+- `enrollments` — `create` (invite) `retrieve` `list` `approve` `reject` `pause` `resume`
+- `distributions` — `create` `retrieve` `update` `list` `validate` `launch` `pause` `resume` `cancel`
+- `deployments` — `retrieve` `list`. The pause/resume/cancel ROUTES are live (scope `distributions:write`); SDK methods are not.
+- `connections` — `list` `retrieve` `revoke`
+- `performance` — `summary` + `events.create`
+- `events` — `list` (operational domain-event feed OUT)
+- `operations` — `retrieve` `list` `wait`
+- `webhooks` — `endpoints.create/retrieve/update/list/del/rotateSecret` + `constructEvent`
+- `payouts` — `list` `run` `exportCsv` `connectStatus` + `batches.list/retrieve`
+
+## Distribution lifecycle
+
+```
+draft        -> validating                validate()
+validating   -> ready                     checks pass
+validating   -> draft                     checks fail (errors in `error`)
+draft|ready  -> draft                     any update() invalidates validation
+ready        -> launching                 launch() -> 202 + operation
+launching    -> active                    all deployments live
+launching    -> partially_active          some live
+launching    -> failed                    ZERO deployments live at terminal launch
+launching    -> canceled                  cancel() supersedes the live launch
+active|partially_active -> paused         pause()
+paused       -> launching                 resume() (re-applies desired state)
+active|partially_active -> completed      all deployments terminal
+draft|ready|active|partially_active|paused -> canceled   cancel()
+```
+
+No `revise()` verb — `update()` in draft|ready with automatic validation
+invalidation IS the revision path. No `canceling` status: the distribution
+carries the requested lifecycle, operations expose async progress. Program
+associations are draft-only.
+
+`validate()` is SYNCHRONOUS in v1. Validation error codes: `program_required`,
+`budget_incomplete`, `slot_incomplete` (carries `slot`),
+`channel_type_not_yet_supported` (carries `slot`).
+
+Deployment plan (`spec`), all fields optional — the default is one referral-link
+slot per approved enrollment:
+
+```js
+spec: { plan: { partner: {
+  enrollment_policy: "all_approved",
+  slots: [{ name: "primary", medium: "referral", channel: "boomin", format: "referral_link" }],
+} } }
+```
+
+`objective` is open text; the suggested set is awareness, acquisition, launch,
+conversion, retention, event_promotion, custom.
+
+## Deployments
+
+`deployment_key` = `enroll_<enrollment-uuid>:<channel>:<format>:<slot-name>`,
+UNIQUE per distribution and STABLE across replans — that is what makes launch,
+resume, and reconciliation idempotent.
+
+Desired vs observed are kept apart permanently:
+- `status` (desired): `active` | `paused` | `canceled`
+- `observed_status`: `pending` | `provisioning` | `live` | `paused` | `pending_review` | `rejected` | `failed` | `completed` | `unknown`
+
+They disagree routinely; that is not an error. Persistent divergence fires
+`deployment.drifted`.
+
+Each partner deployment owns its OWN attribution instrument (ids land in
+`external_ids`), distinct from the enrollment's evergreen `referral_code`.
+
+`retrieve` additionally includes a `capabilities` descriptor honest to the
+deployment's current state; `list` omits it. `list` filters by `distribution`.
+
+## Operations
+
+Every external mutation that does real work returns an Operation. It is never
+"the response you were waiting for" — it is the handle you poll.
+
+Statuses: `pending` `running` `waiting` `succeeded` `partial` `failed` `canceled`.
+The last four are terminal. `partial` is a real outcome (some children
+succeeded), not a transient state.
+
+`waiting_reason` (a waiting op ALWAYS carries one): `funding_required`,
+`provider_review`, `awaiting_target_settle`, `awaiting_children_settle`,
+`awaiting_cleanup`. Waiting ops are woken by domain events when the blocker
+settles, with a cron poller as the universal backstop.
+
+```js
+const operation = await boomin.operations.wait(id, { timeout: 120000, pollInterval: 2000 });
+```
+
+`wait()` resolves on ANY terminal status — inspect `operation.status` yourself.
+It does NOT throw on a failed operation. It throws `BoominError` with code
+`operation_wait_timeout` ONLY when your timeout elapses.
+
+`operations:read` is granted to EVERY valid token implicitly.
+
+`list` filters: `subjectType`, `subjectId` (prefixed id or bare uuid), `status`.
+
+One live mutation per subject: a second launch/resume/apply raises
+`operation_conflict` (409) — poll the live one instead. Cancel runs on a separate
+CONTROL plane, so a cancel can coexist with the launch it targets.
+
+Repeated `cancel()` on a subject with a live cancel is idempotent (returns the
+existing control operation). A failed cancel with unresolved teardown keeps the
+gate closed BY DESIGN -> `cancellation_requires_intervention` (409) carrying the
+failed operation id; an operator retry resolves it. Competing mutations during a
+live cancel get `cancellation_in_progress` (409).
+
+Cancel teardown order: supersede the live launch -> stop new deployment creation
+-> deployments desired=canceled -> adapter cleanup -> release the UNCONSUMED
+budget remainder -> preserve `external_ids`, observed state, and cleanup failures.
+
+## Budgets
+
+`budget: { mode, asset, total }` — `mode` is `none` | `metered` | `funded`,
+`asset` is `usd` | `credit`, `total` is MINOR UNITS. The serialized object also
+carries live `consumed` and `released`.
+
+- `funded` requires an asset and a positive total, else `budget_incomplete` at validate.
+- Reservation happens AT LAUNCH, not at create: wallet available -> reserved, keyed on the distribution so a retried launch cannot double-reserve. Emits `budget.reserved`.
+- Insufficient funds -> `budget.reserve_failed` + the operation parks at `waiting` / `funding_required`. Relaunching REUSES the waiting operation.
+- Drawdown: each reward grant claims its amount exactly once, reserved -> pending.
+- Release: the UNCONSUMED remainder returns to available on cancel or completion. Emits `budget.released`. Consumed budget stays consumed.
+- `deployments[].budget_allocation_minor` carries a deployment's share when allocated.
+- Value only enters the ledger at the platform boundary. There is no API call that mints money.
+
+## Performance (measurement IN)
+
+```js
+await boomin.performance.events.create({
+  deployment: "dep_...",           // required — everything hangs off the deployment
+  type: "purchase",                // your vocabulary, <= 64 chars
+  source: "checkout",              // optional, default "platform_api"
+  occurred_at: "2026-08-01T12:00:00Z",
+  value_minor: 4999,
+  currency: "usd",
+  quantity: 1,
+  idempotency_key: "order_1001",   // 8-200 chars
+  external_event_id: "shopify_1001",
+  properties: { order_id: "1001" },
+});
+```
+
+ONE of `idempotency_key` or `external_event_id` is REQUIRED, else
+`performance_event_identity_required` (422). `idempotency_key` is unique per
+(brand, source); `external_event_id` per (provider, source). 201 on first
+ingestion, 200 with `duplicate: true` on replay. `projected: true` means the
+event also projected into the program metric spine.
+
+You never send a partner, enrollment, or program — that context is derived
+through the deployment, which is why it cannot drift.
+
+Reward eligibility is resolved at `occurred_at`, NOT at ingestion. Send a
+truthful `occurred_at` when backfilling.
+
+```js
+const summary = await boomin.performance.summary({ distribution: "dist_..." });
+// { object, filters, events, value_minor, by_type: [{ type, events, value_minor, quantity }] }
+```
+
+Both filters (`distribution`, `deployment`) are optional; with neither you get
+the brand-wide rollup. `by_type` is ordered by event count descending.
+
+## Events (operational feed OUT)
+
+```js
+for await (const event of boomin.events.list({ startingAfter: lastSeenSeq })) { }
+```
+
+Event shape (byte-identical to a webhook delivery):
+
+```json
+{
+  "id": "evt_...", "object": "event", "type": "distribution.live", "seq": 48213,
+  "subject": { "type": "distribution", "id": "…" }, "data": {},
+  "operation": "op_...", "livemode": true, "created_at": "2026-08-02T12:00:00.000Z"
+}
+```
+
+`events.list` pages FORWARD by ascending `seq` (every other list pages backward
+by creation time). `starting_after` accepts a seq NUMBER or an `evt_` id.
+
+Public vocabulary — the registry IS the exposure boundary; unlisted types never
+leave the org and are not addressable as a filter or a webhook subscription:
+
+- distribution.launching, .live, .paused, .resumed, .completed, .failed, .canceled
+- deployment.created, .activated, .rejected, .paused, .completed, .drifted, .cancel_requested, .canceled, .cleanup_failed
+- partnership.created, .activated, .paused, .resumed, .ended
+- enrollment.created, .approved, .rejected, .activated
+- payout.created, .settled, .failed
+- operation.succeeded, .failed, .cancel_requested, .canceled, .superseded
+- budget.reserved, .released, .reserve_failed
+
+Webhooks for reaction + a periodic `events.list` sweep from the last durably
+stored `seq` is the production shape: it closes any delivery that exhausted its
+retries.
+
+## Webhooks
+
+```js
+const { webhook_endpoint } = await boomin.webhooks.endpoints.create({
+  url: "https://your-app.com/webhooks/boomin",
+  description: "Production",
+  enabled_events: ["distribution.live", "payout.settled"],
+});
+console.log(webhook_endpoint.secret); // whsec_… — shown ONCE
+```
+
+- `https` required; plain `http` allowed for loopback (localhost, 127.0.0.1, [::1]) only.
+- Every `enabled_events` entry must be a public type, else `invalid_event_type` (400). Empty/omitted = ALL public types.
+- The signing secret appears exactly twice in an endpoint's life: the create response and each rotate_secret response.
+- NO history backfill: a new endpoint receives events appended at or after its creation. Close gaps with `events.list`.
+- `update({ status: "disabled" })` stops delivery without destroying the endpoint or secret. A disabled endpoint exhausts in-flight deliveries immediately.
+- `del()` is a hard delete; the idempotency cache is consulted BEFORE the row lookup, so a replayed DELETE returns the cached response instead of 404ing.
+
+### Signature
+
+```
+Boomin-Signature: t=<unix seconds>,v1=<hex hmac>[,v1=<hex hmac>]
+```
+
+HMAC-SHA256 over `${t}.${rawBody}`, keyed by the endpoint secret. Multiple `v1`
+entries appear during rotation.
+
+```js
+import { constructEvent } from "@boomin/sdk/webhooks";
+// or Boomin.webhooks.constructEvent(...)
+
+const event = await constructEvent(payload, sigHeader, secret, { tolerance: 300 });
+```
+
+THREE things to get right:
+1. It is ASYNC (WebCrypto). Forgetting `await` gives a promise that never fails your check — the classic silent hole. Always `await` inside a try.
+2. Pass the RAW body (string | Uint8Array | ArrayBuffer). Never JSON.parse and re-stringify — key order and whitespace change the bytes and the HMAC will not match.
+3. Catch and reject: failure throws `WebhookSignatureVerificationError` (code `webhook_signature_invalid`).
+
+Options: `tolerance` (default 300 seconds; 0 disables the age check), `now`
+(override the clock, tests only). `secret` accepts a single string OR an array of
+candidates.
+
+Express: use `express.raw({ type: "application/json" })` for that route, not
+`express.json`. Workers: `await request.text()` and hand the string over.
+
+### Rotation
+
+`rotateSecret` installs a fresh `whsec_…` and keeps the PREVIOUS secret honored
+for a 24-HOUR overlap window. During the window every delivery carries TWO `v1`
+entries — current first, previous second — so a receiver holding either verifies.
+
+Zero-downtime: rotate and store the new secret alongside the old -> verify against
+`[current, next]` for the length of the window -> after 24h promote and drop.
+
+Rotating AGAIN inside the window replaces the previous secret; only the most
+recent old secret is honored. Do not chain two rotations inside 24 hours.
+
+### Delivery and retries
+
+| Property | Value |
+| --- | --- |
+| Attempts | 6 total (1 initial + 5 retries) |
+| Backoff after failure n | 30s -> 2m -> 8m -> 30m -> 30m |
+| Per-attempt timeout | 10 seconds |
+| Success | any 2xx |
+| Ordering | NOT guaranteed — retries reorder |
+
+Retries come from Boomin's own scheduler, not queue redelivery, and each attempt
+is leased so a concurrent sweeper cannot double-send. After the sixth failed
+attempt the delivery is terminal.
+
+Consequences: answer 2xx FAST (a 10s timeout counts as failure — acknowledge
+first, process asynchronously); be idempotent (dedupe on `event.id`); do not
+depend on order (use `event.seq`).
+
+## Payouts
+
+```js
+await boomin.payouts.run({ period_start: "2026-08-01", period_end: "2026-09-01" });
+const batch = await boomin.payouts.exportCsv({ period_start: "2026-08-01", period_end: "2026-09-01" });
+```
+
+- `run` recomputes the period's rows (idempotent upsert). `period_start` must be strictly before `period_end`, else `invalid_period` (400). Batched rows are NEVER mutated by a re-run.
+- Payout statuses: `pending` `awaiting_account` `processing` `paid` `failed`.
+- Eligible for a batch = status `pending` or `awaiting_account` AND not brand-bridged (brand-bridged rows stay on the wallet rail — never both).
+- `exportCsv` builds a `csv_batch` over eligible rows, exports it, and returns `download_url`. Answers 201. READ `skipped` — it names rows left out and why.
+- Column maps for PayPal / Wise are per-brand config. The confirm and money-move steps are finance-gated and live in the app, not the Platform API.
+- `connectStatus` returns configured rails plus `stripe: { configured, partner_accounts, partner_accounts_payouts_enabled }`. Check it BEFORE a run.
+- `batches.list` returns every batch in one envelope (no pagination, `has_more` always false); `batches.retrieve` adds `items`.
+- The `stripe_connect` rail disburses to partner Express accounts, keyed per payout item so a retry cannot double-send, with reversal on failure.
+
+## Errors
+
+```json
+{ "error": { "code": "distribution_not_ready", "message": "…", "param": null, "request_id": "req_…" } }
+```
+
+SDK classes: `BoominError` (base: `code`, `status`, `requestId`, `param`, `raw`),
+`AuthenticationError`, `PermissionError`, `InvalidRequestError`, `RateLimitError`,
+`ConflictError`, `APIError`, plus promoted `OperationConflictError`,
+`BandLimitReachedError`, `FundingRequiredError`,
+`WebhookSignatureVerificationError`.
+
+Class selection: first by typed `code`, then by HTTP status.
+400/402/404/422 -> InvalidRequestError, 401 -> AuthenticationError,
+403 -> PermissionError, 409 -> ConflictError, 429 -> RateLimitError,
+else APIError. Promoted codes: `operation_conflict` and
+`cancellation_in_progress` -> OperationConflictError, `band_limit_reached` ->
+BandLimitReachedError, `funding_required` -> FundingRequiredError.
+
+Retries: the SDK retries 429 and 5xx up to `maxRetries` (default 2) with jittered
+exponential backoff, honouring `Retry-After`. Mutations are safe to retry because
+they always carry an `Idempotency-Key`. Connection errors and timeouts retry too;
+other 4xx never do.
+
+Key codes and recovery:
+- `platform_token_required` (401) — no Bearer header. v1 is Bearer-only.
+- `platform_token_unknown` / `_inactive` / `_expired` / `_org_missing` (401) — mint or rotate a key.
+- `missing_scope` (403) — message is `missing_scope:<scope>`. Mint a key with that scope.
+- `band_limit_reached` (402) — the org's active-partner band is full. Upgrade the band.
+- `operation_conflict` (409) — a live operation holds the subject's concurrency slot. Retrieve and poll it; do not enqueue a rival.
+- `cancellation_in_progress` (409) — a cancel holds the control gate. Wait for it to settle.
+- `cancellation_requires_intervention` (409) — a previous cancel failed with unresolved teardown; the gate stays closed by design. Carries the failed operation id; an operator retry resolves it.
+- `channel_type_not_yet_supported` (422) — no adapter for that slot. Surfaced by validate() before launch.
+- `performance_event_identity_required` (422) — send `idempotency_key` or `external_event_id`.
+- `idempotency_key_conflict` (409) — same key, different body. Use a fresh key.
+- `invalid_cursor` / `invalid_status` / `invalid_event_type` / `invalid_period` / `invalid_request` (400).
+- `create_rate_limit_exceeded` (429) — back off and retry.
+- Lifecycle 409s: `distribution_not_editable`, `distribution_programs_draft_only`, `distribution_not_validatable`, `distribution_not_ready`, `distribution_not_pausable|_resumable|_cancelable`, `deployment_not_pausable|_resumable|_cancelable`, `enrollment_not_pausable|_resumable`, `partnership_not_pausable|_resumable|_endable`, `connection_not_revocable`.
+- `test_mode_not_yet_available` (400) — `sk_test_`/`pk_test_` are reserved but not built.
+- `developer_access_paused` (503) — operator kill switch. Retry later.
+- 404s (`distribution_not_found`, `deployment_not_found`, `enrollment_not_found`, `partnership_not_found`, `connection_not_found`, `operation_not_found`, `program_not_found`, `partner_not_found`, `payout_batch_not_found`, `webhook_endpoint_not_found`, `brand_not_found`) are returned identically for "does not exist", "belongs to another org", and "malformed id". Existence is never leaked across tenants.
+
+`funding_required` is primarily an operation `waiting_reason`, not a terminal
+error: a funded launch with an underfunded wallet PARKS and resumes once topped
+up. `FundingRequiredError` exists for surfaces that raise it synchronously.
+
+SDK-local codes (raised by the client, never the API): `operation_wait_timeout`,
+`webhook_signature_invalid`, `request_timeout`, `connection_error`,
+`internal_error`.
+
+## Providers are internal adapters
+
+Instagram, TikTok, Meta Ads and the rest NEVER appear in the public API as a
+resource, a parameter, or a route. You express intent through the deployment
+plan's `mode` / `medium` / `channel` / `format` and the registry resolves an
+adapter — or rejects the combination during `validate()` with
+`channel_type_not_yet_supported`.
+
+Exactly ONE adapter is registered today: the Boomin partnership adapter,
+supporting `partner` / `referral` / `boomin` / `referral_link`. Everything else
+fails validation rather than failing at launch.
+
+## Connections
+
+Connection = a provider identity owned by a partner XOR a brand
+(`kind`: social_profile | ad_account | page | pixel | payout). A grant is one
+partnership's right to use it.
+
+Visible to your token when your brand owns it OR a live grant reaches it through
+one of your partnerships; anything else is `connection_not_found`.
+
+`revoke()`: brand-owned -> the connection itself is revoked; partner-owned -> only
+YOUR grants are revoked (the identity is the partner's). Already-revoked ->
+`connection_not_revocable` (409).
+
+## Partner Connect (browser)
+
+```bash
+npm install @boomin/connect
+npx @boomin/cli init
+```
+
+`npx @boomin/cli init` opens a browser login/signup flow, lets the developer
+select or create a Boomin organization and program, ensures a Partner Connect
+config exists, appends localhost origins, and writes `.env.local`:
 
 ```env
 VITE_BOOMIN_PUBLIC_KEY=pk_live_...
 VITE_BOOMIN_PROGRAM_ID=...
 VITE_BOOMIN_API_BASE=https://api.boomin.ai/v1/connect
 ```
-
-## Browser SDK
 
 ```js
 import Boomin from "@boomin/connect";
@@ -48,9 +590,21 @@ if (result?.sessionId) {
 }
 ```
 
+Surface configuration is readable and writable from the Platform API via
+`programs.connectConfig` (scopes `connect_config:read` / `:write`):
+`public_key`, `allowed_origins`, `allowed_redirect_origins`,
+`required_channels`, `default_approval_status` (pending | approved).
+
 ## Signed Handoff
 
-Use Signed Handoff when the customer app already has a logged-in user.
+Use Signed Handoff when the customer app already has a logged-in user, so the
+partner does not enter a second email OTP.
+
+```bash
+npm install @boomin/server
+npx @boomin/cli handoff init --framework next --auth custom
+npx @boomin/cli handoff provision
+```
 
 ```js
 import { createBoominCreatorJoinHandler } from "@boomin/server/next";
@@ -71,11 +625,18 @@ export const GET = createBoominCreatorJoinHandler({
 });
 ```
 
-Handoff payloads are HMAC-SHA256 signed stable JSON, expire quickly, use one-time nonces, and must target an allowed redirect origin.
+Handoff payloads are HMAC-SHA256 signed stable JSON, expire quickly, use one-time
+nonces, and must target an allowed redirect origin.
+
+Issuer configuration is managed from the Platform API via
+`programs.handoffConfig` (scopes `handoff:read` / `:write`) — create-or-update
+per issuer, filterable by `?issuer=`. The `hs_boomin_live_…` signing secret is
+returned ONLY when just minted or explicitly supplied.
+
+`@boomin/server` is MAINTENANCE ONLY — it exists for these generated routes.
+Server work against the Platform API uses `@boomin/sdk`.
 
 ## Referral-first install path
-
-When the installer app already has auth, prefer the referral scaffold. Verified launch sequence:
 
 ```bash
 npx @boomin/cli init
@@ -84,56 +645,13 @@ npx @boomin/cli handoff provision
 npx @boomin/cli doctor
 ```
 
-`init --list` (or answering yes to the interactive prompt) lists the program on Boomin Connect's public Discover feed; the default is private. With `--auth custom`, wire the generated `getCurrentUser` to your auth; `clerk` and `supabase` are prewired. `handoff provision` mints the HMAC signing secret and writes it to `.env.local` (`--rotate` invalidates the old secret). The join call creates the partner, program member, and referral code; clicks on `/r/CODE` are tracked as link clicks in standing metrics.
+`init --list` (or answering yes to the interactive prompt) lists the program on
+the public Discover feed; the default is private. With `--auth custom`, wire the
+generated `getCurrentUser` to your auth; `clerk` and `supabase` are prewired.
+`handoff provision --rotate` invalidates the old secret.
 
-## Discover feed and hosted surfaces
-
-- `GET https://api.boomin.ai/v1/connect/discover` — public, unauthenticated feed of listed programs (display-safe program cards + requirements summary; offset-paginated, limit max 50).
-- Creators browse and apply at `boomin.ai/connect`, then track applications and referral links there. A Partners tab appears in a creator's workspace once a program approves them.
-- Brands operate programs at `boomin.ai` under Partners: active partners + views this month, member table with OAuth-verified socials, applications inbox (approve/reject), and a "List on Connect discover" toggle.
-
-## Pricing
-
-Billed on monthly ACTIVE partners only: a partner is active in a calendar month when they drove >=1 tracked event (referral-link click or tracked post) that month. Dormant partners are always free. Tiers: Free up to 10 active, Starter $79/mo up to 25, Growth $299/mo up to 100, Scale $999/mo up to 500, beyond that contact. Views are never billed — they are OAuth-verified value metrics, not billing metrics.
-
-## Boomin MCP
-
-Recommended agent install:
-
-```bash
-npx @boomin/cli@latest skill install
-npx @boomin/cli@latest mcp install
-npx @boomin/cli@latest doctor
-```
-
-Restart Claude Code or Codex after install so the Boomin skill metadata and MCP server are loaded.
-
-Manual hosted install:
-
-```bash
-claude mcp add --transport http boomin https://mcp.boomin.ai/mcp
-```
-
-OAuth-aware MCP clients can connect directly to `https://mcp.boomin.ai/mcp`. Missing or expired authorization returns a standards-style OAuth challenge that points clients to `https://mcp.boomin.ai/authorize`.
-
-Local stdio install for Codex-style agents:
-
-```bash
-npx @boomin/mcp
-npx @boomin/cli mcp
-```
-
-The CLI `mcp install` path creates a scoped platform token and writes it into Claude Code's user MCP config as a static bearer header. OAuth-aware clients can use the hosted consent flow instead. Both paths map to Boomin platform scopes and audit logs.
-
-Default MCP skill pack:
-
-- `Referral Program Installer`: `boomin.doctor`, `boomin.detect_project`, `boomin.get_connect_config`, `boomin.scaffold_referral_first`, `boomin.verify_referral_install`, `boomin.get_partner_standing`, `boomin.record_test_event`.
-
-Admin opt-in MCP skill pack:
-
-- `Program Operator`: `boomin.get_program`, `boomin.update_program`, `boomin.update_required_channels`, `boomin.update_referral_settings`, requirement CRUD, tier CRUD, and program evaluation.
-
-Program Operator requires explicit scopes such as `programs:update`, `connect_config:write`, `program_requirements:write`, and `program_tiers:write`.
+The join call creates the partner, the enrollment, and the referral code; clicks
+on `/r/CODE` are tracked as link clicks in standing metrics.
 
 Generated files:
 - `app/api/boomin/partner/join/route.js` signs the current app user into Boomin.
@@ -141,7 +659,7 @@ Generated files:
 - `app/r/[code]/route.js` records `link_clicks` and redirects with `?ref=<code>`.
 - `app/partner/page.jsx` shows referral link, copy button, metrics, approval, qualification, and optional Instagram connect.
 
-Boomin standing responses include:
+Standing response:
 
 ```json
 {
@@ -154,108 +672,208 @@ Boomin standing responses include:
 }
 ```
 
-Instagram is optional. Referral-only programs use `requiredChannels: []`. Programs that require Instagram return referral data plus `missingChannels: ["instagram"]` until OAuth is complete.
+Instagram is optional. Referral-only programs use `requiredChannels: []`.
+Programs requiring Instagram return referral data plus
+`missingChannels: ["instagram"]` until OAuth completes.
 
-## Public vs private credentials
+## Qualification
 
-Public Creator Connect key:
-- Prefix: `pk_live_...`
-- Browser-safe.
-- Starts OTP and Instagram Creator Connect flows.
-- Restricted by allowed origins and redirect origins.
+`programs.requirements` fields: `scope` (program_entry | program_maintenance |
+tier | campaign | benefit | invite), `scope_id`, `metric_key`, `operator`
+(gte | lte | eq | neq | exists), `threshold`, `window_days` (null = lifetime),
+`source`, `weight`, `required`, `status` (active | paused | archived).
 
-Private platform token:
-- Prefix: `sk_boomin_live_...`
-- Server/agent only.
-- Scoped.
-- Revocable.
-- Has request audit logs.
-- Create endpoints are limited to 150 creates/hour per org + token + resource family.
+Closed metric vocabulary: `followers`, `views`, `post_count`, `collab_posts`,
+`link_clicks`, `referral_count`, `gmv_cents`, `sales_count`,
+`product_usage_count`, `channel_connected`, `manual_approval`,
+`event_registration`, `template_install`. Anything else is `invalid_request`.
 
-## Platform token commands
+Deleting a requirement ARCHIVES it and re-evaluates the program.
+`programs.tiers` are keyed by `rank` — creating at an existing rank upserts;
+lists come back ordered by ascending rank.
+
+## CLI 0.3.0
+
+Setup: `login`, `logout`, `status`, `doctor`, `init`.
+Keys: `token create|list|revoke|rotate`, `scopes`, `scopes explain <scope>`.
+Scaffolding: `referral init`, `handoff init|provision`, `mcp install`, `skill install`.
+Smoke: `platform smoke --read-only | --write --cleanup | --all-scopes --cleanup`.
+
+Platform v1 groups over the live REST tree:
 
 ```bash
-npx @boomin/cli scopes
-npx @boomin/cli scopes --json
-npx @boomin/cli scopes explain units:create
+npx @boomin/cli distribution create|list|get|validate|launch|pause|resume|cancel
+npx @boomin/cli enrollment invite|approve|reject|list|get
+npx @boomin/cli partnership list|get|pause|resume|end
+npx @boomin/cli connection list|get|revoke
+npx @boomin/cli payout list|run|export|connect
+npx @boomin/cli webhook create|list|delete|rotate-secret
+npx @boomin/cli events list --type <event.type>
+```
 
-npx @boomin/cli token create --name "Unit Agent" --scopes org:read,units:read,units:create,units:delete
-npx @boomin/cli token list --json
-npx @boomin/cli token revoke <token_id>
-npx @boomin/cli token rotate <token_id>
+Operation-returning commands (launch/pause/resume/cancel) POLL THE OPERATION TO A
+TERMINAL STATUS BY DEFAULT; `--no-wait` returns the 202 immediately.
+`--timeout <seconds>` defaults to 120, `--poll-interval <secs>` to 2.
 
+`distribution create` flags: `--name` (required), `--objective`, `--programs`
+(csv), `--description`, `--spec <json>`, `--budget <json>` or
+`--budget-mode/--budget-asset/--budget-total`.
+
+Auth: `--token sk_boomin_live_...`, `BOOMIN_PLATFORM_TOKEN`, or saved config.
+`--brand <id-or-slug>` sets the `Boomin-Brand` header. `--json` everywhere.
+
+Global flags: `-h/--help`, `--json`, `--api-base`, `--platform-api-base`,
+`--web-base`, `--connect-api-base`.
+
+On a scope failure the CLI prints the typed code, the required scope, and a
+ready-to-run `token create` fix.
+
+```bash
 npx @boomin/cli platform smoke --read-only --token sk_boomin_live_...
 npx @boomin/cli platform smoke --write --cleanup --token sk_boomin_live_...
 npx @boomin/cli platform smoke --all-scopes --cleanup --json
 ```
 
-`platform smoke --all-scopes` creates a temporary all-scope token if no platform token is supplied, executes all registered V1 scopes through `POST /scopes_exec` on `https://api.boomin.ai/v1/platform`, cleans up created smoke objects when `--cleanup` is present, and revokes the temporary token.
+`platform smoke --all-scopes` creates a temporary all-scope token if none is
+supplied, executes all registered V1 scopes through `POST /scopes_exec` on
+`https://api.boomin.ai/v1/platform`, cleans up created smoke objects with
+`--cleanup`, and revokes the temporary token.
+
+## Boomin MCP
+
+```bash
+npx @boomin/cli@latest skill install
+npx @boomin/cli@latest mcp install
+npx @boomin/cli@latest doctor
+```
+
+Restart Claude Code or Codex after install so the Boomin skill metadata and MCP
+server are loaded.
+
+Manual hosted install:
+
+```bash
+claude mcp add --transport http boomin https://mcp.boomin.ai/mcp
+```
+
+OAuth-aware MCP clients can connect directly to `https://mcp.boomin.ai/mcp`.
+Missing or expired authorization returns a standards-style OAuth challenge
+pointing clients to `https://mcp.boomin.ai/authorize`.
+
+The CLI `mcp install` path creates a scoped platform token and writes it into
+Claude Code's user MCP config as a static bearer header. OAuth-aware clients can
+use the hosted consent flow instead. Both paths map to Boomin platform scopes and
+audit logs.
+
+Default skill pack — `Referral Program Installer`: `boomin.doctor`,
+`boomin.detect_project`, `boomin.get_connect_config`,
+`boomin.scaffold_referral_first`, `boomin.verify_referral_install`,
+`boomin.get_partner_standing`, `boomin.record_test_event`.
+
+Admin opt-in skill pack — `Program Operator`: `boomin.get_program`,
+`boomin.update_program`, `boomin.update_required_channels`,
+`boomin.update_referral_settings`, requirement CRUD, tier CRUD, program
+evaluation. Requires explicit scopes such as `programs:update`,
+`connect_config:write`, `program_requirements:write`, `program_tiers:write`.
+
+## Public vs private credentials
+
+Public Partner Connect key:
+- Prefix: `pk_live_...`
+- Browser-safe.
+- Starts OTP and Instagram Partner Connect flows.
+- Restricted by allowed origins and redirect origins.
+
+Private platform key:
+- Prefix: `sk_boomin_live_...`
+- Server/agent only. NEVER in browser code, mobile bundles, or public repos.
+- Scoped, revocable, audited, idempotent.
+- Create endpoints limited to 150 creates/hour per org + token + resource family.
+
+Test mode: `sk_test_` / `pk_test_` are RESERVED and answer
+`test_mode_not_yet_available`. Every object already carries `livemode`, so full
+test mode will need no backfill. Until then: a disposable brand with live keys,
+plus `validate()` as the pre-launch dry run.
+
+## Key management
+
+```bash
+npx @boomin/cli token create --name "Server" --scopes org:read,distributions:read --save
+npx @boomin/cli token list --json
+npx @boomin/cli token revoke <token_id>
+npx @boomin/cli token rotate <token_id> --save
+```
+
+The secret is shown ONCE on create and rotate. Rotation revokes the old key and
+creates a replacement with the same scope set. Revoked keys return 401.
 
 ## V1 scopes
 
-Setup:
-- `org:read`
-- `connect_config:read`
-- `connect_config:write`
+Distribution core: `org:read`, `distributions:read`, `distributions:write`,
+`distributions:launch`, `deployments:read`, `performance:read`,
+`performance:write`, `operations:read` (IMPLICITLY GRANTED to every valid token),
+`events:read`, `payouts:read`, `payouts:write`.
 
-Programs:
-- `programs:read`
-- `programs:create`
-- `programs:update`
-- `programs:delete`
-- `program_members:read`
-- `program_members:approve`
-- `program_resources:read`
-- `program_resources:write`
-- `campaigns:read`
-- `campaigns:write`
-- `benefits:read`
-- `benefits:write`
-- `webhooks:read`
-- `webhooks:write`
+Relationships: `partnerships:read|write`, `enrollments:read|write`,
+`connections:read|write`, `partners:read`.
 
-Content:
-- `series:read`
-- `series:create`
-- `series:update`
-- `series:delete`
-- `units:read`
-- `units:create`
-- `units:update`
-- `units:delete`
-- `units:publish`
+Programs: `programs:read|create|update|delete`,
+`program_requirements:read|write`, `program_tiers:read|write`,
+`program_resources:read|write`, `connect_config:read|write`,
+`handoff:read|write`, `campaigns:read|write`, `benefits:read|write`,
+`webhooks:read|write`.
 
-UI and assets:
-- `pages:read`
-- `pages:write`
-- `pages:delete`
-- `canvas:read`
-- `canvas:write`
-- `canvas:delete`
-- `files:read`
-- `files:write`
-- `files:delete`
+Content: `series:read|create|update|delete`,
+`units:read|create|update|delete|publish`.
 
-Automation and data:
-- `agents:read`
-- `agents:write`
-- `agents:run`
-- `workflows:read`
-- `workflows:write`
-- `workflows:run`
-- `contacts:read`
-- `segments:read`
-- `segments:write`
-- `events:read`
-- `events:write`
+UI and assets: `pages:read|write|delete`, `canvas:read|write|delete`,
+`files:read|write|delete`.
 
-Commerce:
-- `commerce:read`
-- `commerce:write`
+Automation and data: `agents:read|write|run`, `workflows:read|write|run`,
+`contacts:read`, `segments:read|write`, `events:write`.
+
+Commerce: `commerce:read`, `commerce:write` (excludes billing and payouts).
+
+Legacy `program_members:read` and `program_members:approve` are accepted as
+aliases for the enrollment scopes on already-issued tokens.
+
+`distributions:launch` is deliberately separate from `distributions:write`:
+spending money is not the same permission as editing a draft.
+`performance:write` (ingestion IN) is deliberately distinct from `events:read`
+(operational feed OUT). Mutating a deployment requires `distributions:write` —
+`deployments:read` is a read-only grant by design.
+
+## Discover feed and hosted surfaces
+
+- `GET https://api.boomin.ai/v1/connect/discover` — public, unauthenticated feed of listed programs (display-safe program cards + requirements summary; offset-paginated, limit max 50).
+- Partners browse and apply at `boomin.ai/connect`, then track applications and referral links there. A Partners tab appears in a partner's workspace once a program approves them.
+- Brands operate programs at `boomin.ai` under Partners: active partners + views this month, member table with OAuth-verified socials, applications inbox (approve/reject), and a "List on Connect discover" toggle.
+
+## Pricing
+
+Billed on monthly ACTIVE partners only: a partner is active in a calendar month
+when they are approved AND drove >=1 tracked event (referral-link click or
+tracked post) that month. Dormant partners are always free. A partner in two
+programs counts ONCE — the aggregation key is the distinct partnership.
+
+Tiers: Free up to 10 active, Starter $79/mo up to 25, Growth $299/mo up to 100,
+Scale $999/mo up to 500, beyond that contact. Views are never billed — they are
+OAuth-verified value metrics, not billing metrics.
+
+Neither enrollment pause nor partnership pause affects billability: links keep
+resolving under both, so pausing never dodges fees. Archive or
+`partnership.end` are the billing exits.
+
+## Deprecated
+
+- `boominjs` — DEPRECATED. Use `@boomin/sdk` for the Platform API, or `@boomin/connect` for browser Partner Connect.
+- `@boomin/server` — MAINTENANCE ONLY, for the generated Signed Handoff routes.
+- "Creator Connect" is the former name of Partner Connect. Old `/creator-connect/*` doc paths 301 to `/partner-connect/*`.
+- The pre-v1 RPC routes under `/v1/platform` remain functional for CLI 0.2.0, MCP, and existing integrations. New work uses the REST tree and `@boomin/sdk`.
 
 ## OpenAPI
 
-Creator Connect:
+Partner Connect:
 - Docs: https://developers.boomin.ai/api/connect/
 - Spec: https://developers.boomin.ai/openapi/connect.yaml
 
@@ -263,6 +881,8 @@ Platform API:
 - Docs: https://developers.boomin.ai/api/platform/
 - Spec: https://developers.boomin.ai/openapi/platform.yaml
 
-## Product model
+## Product principle
 
-Programs are durable. Campaigns are activation pushes inside a program. Program membership owns approval status, referral code, connection status, and billable creator state. Campaigns, benefits, requirements, and webhooks build on top of program membership.
+Distribution is intent; deployments are execution; performance is measurement.
+Programs stay durable — a distribution runs THROUGH a program, never instead of
+one. Providers are internal adapters and never become public API surface.

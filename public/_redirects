@@ -1,3 +1,30 @@
-/api /api/connect/ 302
-/openapi/creator-connect.yaml /openapi/connect.yaml 301
-/docs/* /:splat 301
+# Legacy Creator Connect IA -> Partner Connect
+/creator-connect                 /partner-connect/browser-sdk/     301
+/creator-connect/                /partner-connect/browser-sdk/     301
+/creator-connect/browser-sdk     /partner-connect/browser-sdk/     301
+/creator-connect/browser-sdk/    /partner-connect/browser-sdk/     301
+/creator-connect/account-first   /partner-connect/account-first/   301
+/creator-connect/account-first/  /partner-connect/account-first/   301
+/creator-connect/signed-handoff  /partner-connect/signed-handoff/  301
+/creator-connect/signed-handoff/ /partner-connect/signed-handoff/  301
+/creator-connect/admin-approval  /partner-connect/admin-approval/  301
+/creator-connect/admin-approval/ /partner-connect/admin-approval/  301
+/creator-connect/*               /partner-connect/:splat           301
+
+# Legacy program IA
+/creator-programs/*              /partner-programs/:splat          301
+/programs/discover               /partner-programs/discover/       301
+/programs/dashboard              /partner-programs/dashboard/      301
+
+# MCP moved out of the CLI section
+/cli/mcp                         /mcp/                             301
+/cli/mcp/                        /mcp/                             301
+
+# SDK section index
+/sdk/resources                   /sdk/                             301
+/sdk/resources/                  /sdk/                             301
+
+# OpenAPI + docs prefix
+/api                             /api/connect/                     302
+/openapi/creator-connect.yaml    /openapi/connect.yaml             301
+/docs/*                          /:splat                           301

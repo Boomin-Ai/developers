@@ -1,6 +1,6 @@
 ---
 title: React Creator Flow
-description: Account-first Creator Connect in a React app.
+description: Account-first Partner Connect in a React app.
 ---
 
 This example matches the recommended customer flow: email first, OTP second, Instagram third.
