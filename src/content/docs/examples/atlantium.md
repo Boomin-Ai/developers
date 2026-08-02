@@ -1,6 +1,6 @@
 ---
 title: Atlantium Reference
-description: The first production-style Creator Connect customer integration.
+description: The first production-style Partner Connect customer integration.
 ---
 
 Atlantium is the first customer-style reference integration.

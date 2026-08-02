@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Boomin Platform API
   version: 0.3.4
-  description: Scoped private API for agents and server-side automation. Use public Creator Connect keys in browsers and private platform tokens only on servers or agent runtimes.
+  description: Scoped private API for agents and server-side automation. Use public Partner Connect keys in browsers and private platform tokens only on servers or agent runtimes.
 servers:
   - url: https://api.boomin.ai/v1/platform
     description: Dedicated Boomin Platform API base for private platform-token execution.

@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Boomin Creator Connect API
+  title: Boomin Partner Connect API
   version: 0.3.4
 servers:
   - url: https://api.boomin.ai/v1/connect

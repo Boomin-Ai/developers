@@ -1,72 +1,122 @@
 ---
 title: Boomin Developers
-description: Build creator programs, creator auth, admin approval, and scoped agent automation with Boomin.
+description: Programmable distribution infrastructure — partnerships, distributions, deployments, and performance through @boomin/sdk and the Platform API.
 template: splash
 hero:
-  title: Creator-program infrastructure for builders and agents.
-  tagline: Add referral programs, account-first Partner Connect, Instagram OAuth, and scoped platform automation — with a hosted Partners dashboard and a public Discover feed for creators.
+  title: Programmable distribution infrastructure.
+  tagline: Declare a business objective. Boomin fans it out across your partners, tracks what happened, and pays them. One SDK, one API, no provider plumbing.
   image:
     file: ../../assets/boomin-mark.svg
   actions:
-    - text: Start with Boomin
+    - text: Quickstart
       link: /quickstart/
       icon: right-arrow
       variant: primary
-    - text: Platform API
-      link: /platform-api/
-      icon: external
+    - text: The distribution model
+      link: /concepts/model/
+      icon: open-book
 ---
 
-## Developer surface
+## Start here
 
-### Install in a customer app
+```bash
+npm install @boomin/sdk
+```
 
-Use `npm install @boomin/connect` to add OTP signup, Instagram connect, and approval status to any browser UI.
+```js
+import Boomin from "@boomin/sdk";
 
-### Configure from the CLI
+const boomin = new Boomin(process.env.BOOMIN_SECRET_KEY);
 
-`npx @boomin/cli init` opens Boomin login, creates or selects a program, adds localhost origins, and writes `.env.local`. Add `--list` to put the program on Connect's public Discover feed.
+const distribution = await boomin.distributions.create({
+  name: "Spring launch",
+  objective: "launch",
+  programs: ["prog_..."],
+  budget: { mode: "funded", asset: "credit", total: 50000 },
+});
 
-### Operate from the Partners dashboard
+await boomin.distributions.validate(distribution.id);
+const { operation } = await boomin.distributions.launch(distribution.id);
+await boomin.operations.wait(operation, { timeout: 120000 });
+```
 
-Brands run the program at `boomin.ai` under Partners: active partners and views this month, member table with OAuth-verified socials, applications inbox, and the Discover listing toggle.
+A **Distribution** is Boomin's `PaymentIntent`: you declare the objective, Boomin
+fans it out into **Deployments** and reports back what actually happened.
 
-### Let creators find you
+## Two rails
 
-Listed programs appear in the public Discover feed at `boomin.ai/connect`, where creators browse and apply. First 10 active creators free — see [Pricing](/pricing/).
+**An evergreen program** needs no distribution at all. Create a program, invite
+partners, approve them — each approved enrollment gets a referral code,
+qualification and tiers evaluate continuously, rewards accrue. That is a
+complete product on its own.
 
-### Automate safely
+**A distribution** layers a time-boxed, funded, measurable push on top of the
+same partners, with its own attribution instrument per deployment and its own
+budget drawdown.
 
-Private `sk_boomin_live_...` platform tokens are scoped, revocable, audited, idempotent, and create-limited.
+They compose. [Read the model →](/concepts/model/)
 
-### Ship with OpenAPI
+## The surface
 
-Use the interactive API references or download `/openapi/connect.yaml` and `/openapi/platform.yaml`.
+### Server SDK
+
+`@boomin/sdk` — twelve resource clients over `/v1/platform`. `fetch` +
+WebCrypto only, zero dependencies: Node ≥ 18, Cloudflare Workers, Bun, Deno,
+edge. [Install & client →](/sdk/)
+
+### Browser
+
+`@boomin/connect` adds OTP signup, Instagram connect, and approval status to any
+UI. Already logged-in users skip the second OTP through
+[Signed Handoff](/partner-connect/signed-handoff/).
+
+### CLI
+
+`npx @boomin/cli init` sets up an org, a brand, a program, a Connect surface, and
+`.env.local`. Seven Platform v1 groups drive the whole distribution tree from a
+terminal. [Command reference →](/cli/reference/)
+
+### MCP and agents
+
+Scoped `sk_boomin_live_...` keys are revocable, audited, idempotent, and
+creation-rate-limited — safe to hand to an agent. [Boomin MCP →](/mcp/)
+
+### OpenAPI
+
+Interactive references for [Platform](/api/platform/) and
+[Partner Connect](/api/connect/), or download
+[`/openapi/platform.yaml`](/openapi/platform.yaml) and
+[`/openapi/connect.yaml`](/openapi/connect.yaml).
 
 ## What Boomin owns
 
-Boomin owns the infrastructure that every creator program needs but most teams do not want to rebuild: creator enrollment, email OTP, Instagram OAuth, durable program membership, admin approval, referral codes, creator status, and scoped agent/server automation.
+Partner enrollment, email OTP, Instagram OAuth, durable partnerships, approval,
+referral codes, qualification and tiers, distribution fan-out, attribution,
+budgets, performance rollups, payouts, webhooks, and scoped server automation.
 
-Customer sites own their UI. Boomin provides the SDK, API, OAuth bridge, admin surface, and safe platform tokens.
+Your site owns its UI. Providers — Instagram, TikTok, Meta Ads — are **internal
+adapters**: they never appear in the public API as a resource, a parameter, or a
+route.
 
 ## Current production surfaces
 
-- `@boomin/connect` browser SDK and `@boomin/cli` CLI.
-- Creator Connect API at `https://api.boomin.ai/v1/connect`.
-- Public Discover feed at `GET /v1/connect/discover`; creators browse and apply at `boomin.ai/connect`.
-- Hosted Partners dashboard for brands at `boomin.ai` (members, applications, verified metrics).
+- Platform API v1 at `https://api.boomin.ai/v1/platform` — Bearer-only, twelve
+  resources, typed errors, cursor pagination.
+- Partner Connect API at `https://api.boomin.ai/v1/connect`.
+- `@boomin/sdk`, `@boomin/connect`, and `@boomin/cli` 0.3.0.
+- Public Discover feed at `GET /v1/connect/discover`; partners browse and apply
+  at `boomin.ai/connect`.
+- Hosted Partners dashboard for brands at `boomin.ai`.
 - CLI browser login through `https://boomin.ai/cli/login`.
-- Scoped platform tokens with `sk_boomin_live_...` secrets.
-- Platform smoke commands for read-only and write/cleanup validation.
 
 ## Agent entrypoints
 
-Agents should start with:
-
 ```bash
-npm install @boomin/connect
+npm install @boomin/sdk
 npx @boomin/cli init
 npx @boomin/cli scopes
+npx @boomin/cli help distribution
 ```
 
-For machine-readable docs, use [`/llms.txt`](/llms.txt) or [`/llms-full.txt`](/llms-full.txt).
+For machine-readable docs, use [`/llms.txt`](/llms.txt) or
+[`/llms-full.txt`](/llms-full.txt).

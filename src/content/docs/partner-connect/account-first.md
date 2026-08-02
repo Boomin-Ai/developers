@@ -3,7 +3,7 @@ title: Account-first Flow
 description: Collect email first, then connect Instagram.
 ---
 
-Account-first Creator Connect is the recommended flow for brand programs.
+Account-first Partner Connect is the recommended flow for brand programs.
 
 It solves the biggest direct-social problem: if a creator connects Instagram first, the brand may not have a reliable email address for approval, rejection, or campaign notifications.
 

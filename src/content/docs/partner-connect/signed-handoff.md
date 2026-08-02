@@ -24,6 +24,13 @@ npm install @boomin/server
 npx @boomin/cli handoff init --framework next --auth custom
 ```
 
+:::note[Which package?]
+`@boomin/server` is **maintenance only** — it exists for the generated handoff
+routes below and nothing else. Server-side work against the Platform API
+(distributions, enrollments, payouts, webhooks) uses
+[`@boomin/sdk`](/sdk/). The deprecated `boominjs` package is superseded by both.
+:::
+
 For the full referral-first starter surface, use:
 
 ```bash
