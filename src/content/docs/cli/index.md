@@ -1,15 +1,19 @@
 ---
 title: CLI Guide
-description: Use npx @boomin/cli to log in, initialize apps, inspect scopes, and smoke-test APIs.
+description: Log in, scaffold a program, mint keys, and drive the distribution tree from the terminal.
 ---
 
-Boomin ships the browser SDK as `@boomin/connect` and the CLI as `@boomin/cli`.
+`@boomin/cli` **0.3.0** covers two jobs: getting a project set up, and driving
+the live `/v1/platform` distribution tree without writing code.
 
 ```bash
 npx @boomin/cli --help
+npx @boomin/cli help distribution
 ```
 
-Every command supports `-h` and `--help`.
+Every command supports `-h` / `--help`. Agents should prefer `--json`.
+
+For the exhaustive flag list, see [Command Reference](/cli/reference/).
 
 ## Login
 
@@ -17,60 +21,106 @@ Every command supports `-h` and `--help`.
 npx @boomin/cli login
 ```
 
-The CLI creates a short-lived login session, opens Boomin in your browser, and waits for approval. This is the same pattern used by tools like Wrangler: credentials are granted in the browser, not typed into the terminal.
+Creates a short-lived login session, opens Boomin in your browser, and waits for
+approval — the same pattern Wrangler uses. Credentials are granted in the
+browser, never typed into the terminal.
 
 ## Init
 
 ```bash
-npx @boomin/cli init
+npx @boomin/cli init --program-name "Launch Partners" --yes
 ```
 
-`init` logs in if needed, selects or creates an organization and creator program, ensures a Creator Connect public key exists, appends local origins, and writes `.env.local`.
+`init` logs in if needed, selects or creates an organization and program,
+ensures a [Partner Connect](/partner-connect/browser-sdk/) surface exists,
+appends local origins, and writes `.env.local`:
 
-Useful flags:
+```env
+VITE_BOOMIN_PUBLIC_KEY=pk_live_...
+VITE_BOOMIN_PROGRAM_ID=...
+VITE_BOOMIN_API_BASE=https://api.boomin.ai/v1/connect
+```
+
+Programs are **private by default**. Add `--list` to put yours on the public
+[Discover feed](/partner-programs/discover/). Interactive `init` asks and
+defaults to private; non-interactive `init` never lists.
+
+Useful variants:
 
 ```bash
-npx @boomin/cli init --yes
 npx @boomin/cli init --dry-run
 npx @boomin/cli init --origin http://localhost:3000
-npx @boomin/cli init --program-name "Launch Creator Program"
-npx @boomin/cli init --list
+npx @boomin/cli init --program-id prog_...
 ```
 
-`--list` lists the program on Boomin Connect's public [Discover feed](/partner-programs/discover/). Without the flag, interactive `init` asks and defaults to private; a non-interactive `init` never lists.
+## Mint a platform key
 
-## Referral scaffold and handoff
+```bash
+npx @boomin/cli token create \
+  --name "Quickstart server" \
+  --scopes org:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write \
+  --save
+```
+
+The secret is shown once. See [Token Commands](/cli/tokens/) and
+[Authentication](/concepts/authentication/).
+
+## Drive the distribution tree
+
+Seven groups over the live Platform API — `distribution`, `enrollment`,
+`partnership`, `connection`, `payout`, `webhook`, `events`:
+
+```bash
+npx @boomin/cli enrollment invite --program prog_... --email creator@example.com
+npx @boomin/cli enrollment approve enr_...
+
+npx @boomin/cli distribution create --name "Spring launch" --objective launch \
+  --programs prog_... --budget-mode funded --budget-asset credit --budget-total 50000
+npx @boomin/cli distribution validate dist_...
+npx @boomin/cli distribution launch dist_...
+
+npx @boomin/cli webhook create --url https://your-app.com/webhooks/boomin
+npx @boomin/cli payout export --out payouts.csv
+```
+
+`launch`, `pause`, `resume`, and `cancel` are asynchronous — they answer `202`
+with an operation. The CLI **polls the operation to a terminal status by
+default**; `--no-wait` returns immediately.
+
+```bash
+npx @boomin/cli distribution launch dist_... --timeout 300 --poll-interval 5
+npx @boomin/cli distribution launch dist_... --no-wait
+```
+
+## Scaffolding
 
 ```bash
 npx @boomin/cli referral init --framework next --auth custom --write
 npx @boomin/cli handoff provision
 ```
 
-`referral init` generates the partner join/status routes, the `/r/[code]` redirect tracker, and a starter `/partner` page. `handoff provision` mints the program's handoff signing secret and writes it to `.env.local` (`--rotate` mints a new one and invalidates the old).
+`referral init` generates the partner join/status routes, the `/r/[code]`
+redirect tracker, and a starter `/partner` page. `handoff provision` mints the
+program's [signed-handoff](/partner-connect/signed-handoff/) secret and writes it
+to `.env.local` (`--rotate` replaces it).
 
 ## Doctor
 
 ```bash
 npx @boomin/cli doctor
-npx @boomin/cli doctor --json
+npx @boomin/cli doctor --json --strict
 ```
 
-`doctor` checks login, env, handoff config, and referral-route readiness, and prints a fix command for anything that fails.
+Checks login, env, Connect config, handoff config, and referral-route readiness,
+and prints a fix command for anything that fails.
 
-## Status and logout
+## Status, scopes, logout
 
 ```bash
-npx @boomin/cli status
 npx @boomin/cli status --json
-npx @boomin/cli logout
-```
-
-## Scopes
-
-```bash
 npx @boomin/cli scopes
-npx @boomin/cli scopes --json
-npx @boomin/cli scopes explain units:create
+npx @boomin/cli scopes explain distributions:launch
+npx @boomin/cli logout
 ```
 
 ## Platform smoke
@@ -81,6 +131,6 @@ npx @boomin/cli platform smoke --write --cleanup --token sk_boomin_live_...
 npx @boomin/cli platform smoke --all-scopes --cleanup --json
 ```
 
-Agents should prefer `--json` when they need machine-readable output.
-
-`--all-scopes` creates a temporary all-scope token when no token is passed, executes every V1 scope through the Platform scope executor, cleans up created smoke objects when `--cleanup` is present, and revokes the temporary token.
+`--all-scopes` mints a temporary all-scope token when none is passed, executes
+every registered scope through the platform scope executor, cleans up with
+`--cleanup`, and revokes the temporary token.
