@@ -175,7 +175,8 @@ it returns the existing control operation rather than erroring.
 | `payout_batch_conflict` | 409 | A concurrent build raced this one. → `PayoutBatchStateError` | Retry, or read the batch that won. |
 | `payout_batch_not_exportable` / `_not_confirmable` / `_not_cancelable` | 409 | The batch's status refuses the verb. → `PayoutBatchStateError` | Retrieve the batch and read `status`. |
 | `payout_rule_not_found` / `payout_rail_not_found` | 404 | Unknown, malformed, or another tenant's id. | Check the id. |
-| `payout_export_unconfigured` | — | CLI-side: the batch exported but no presigned URL came back, so `--out` cannot be written. | Check storage credentials; the file exists but was not delivered. |
+| `payout_export_format_invalid` | 400 | The rail's `config.format` is not a known export format. | Use `paypal_payouts_csv` or `wise_batch_csv`. |
+| `payout_export_unconfigured` | 400 | The export has no usable destination configuration. The CLI raises the same code when a batch exported but no presigned URL came back, so `--out` cannot be written. | The file exists but was not delivered — check the rail config and storage credentials. |
 
 Full context on each: [Getting partners paid](/payouts/).
 

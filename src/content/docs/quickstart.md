@@ -454,6 +454,8 @@ Three things here surprise people:
 Fetch the file:
 
 ```js
+import { writeFile } from "node:fs/promises";
+
 const res = await fetch(batch.downloadUrl);
 await writeFile("payouts.csv", Buffer.from(await res.arrayBuffer()));
 ```
