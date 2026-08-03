@@ -51,7 +51,10 @@ export default defineConfig({
                 { label: "events", slug: "sdk/resources/events" },
                 { label: "operations", slug: "sdk/resources/operations" },
                 { label: "webhooks", slug: "sdk/resources/webhooks" },
-                { label: "payouts", slug: "sdk/resources/payouts" }
+                { label: "payouts", slug: "sdk/resources/payouts" },
+                { label: "payouts.rules", slug: "sdk/resources/payout-rules" },
+                { label: "payouts.rails", slug: "sdk/resources/payout-rails" },
+                { label: "payouts.batches", slug: "sdk/resources/payout-batches" }
               ]
             },
             {
@@ -76,8 +79,14 @@ export default defineConfig({
             { label: "Lifecycle & launching", slug: "distributions/lifecycle" },
             { label: "Deployments", slug: "distributions/deployments" },
             { label: "Budgets", slug: "distributions/budgets" },
-            { label: "Performance", slug: "distributions/performance" },
-            { label: "Payouts", slug: "distributions/payouts" }
+            { label: "Performance", slug: "distributions/performance" }
+          ]
+        },
+        {
+          label: "Payouts",
+          items: [
+            { label: "Getting partners paid", slug: "payouts" },
+            { label: "The payout ledger", slug: "distributions/payouts" }
           ]
         },
         {
