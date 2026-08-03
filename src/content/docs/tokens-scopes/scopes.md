@@ -30,10 +30,35 @@ The scopes the `/v1/platform` distribution tree uses.
 | `operations:read` | Read operations. **Implicitly granted to every valid token**, so any key can poll the operations it caused. |
 | `events:read` | Read the operational domain-event feed. |
 | `payouts:read` | Read the payout ledger, batches, and rail readiness. |
-| `payouts:write` | Run a payout period and export batches. |
+| `payouts:write` | Run a payout period; create, export, confirm, and cancel batches. |
 
 `performance:write` (measurement in) and `events:read` (the operational feed
 out) are explicitly distinct. Holding one never implies the other.
+
+## Payout configuration
+
+Payout **execution** and payout **configuration** are separate grants. Neither
+`payouts:read` nor `payouts:write` implies any of these.
+
+| Scope | Purpose |
+| --- | --- |
+| `payout_rules:read` | Read payout rules (how a partner earns). |
+| `payout_rules:write` | Create, update, or archive payout rules. |
+| `payout_rails:read` | Read payout rails and their delivery `config`. |
+| `payout_rails:write` | Configure payout rails (where money physically lands). |
+
+`payouts:write` moves money the brand already owes. A rail's column mapping
+decides *which field of a payout row lands in the recipient column* of a file a
+human uploads to a bank — closer to banking configuration than to payout
+execution. So a key that runs the monthly payout job cannot also redirect where
+the money goes. Mint the job `payouts:read,payouts:write`, and keep
+`payout_rails:write` on a separate, rarely-used key.
+
+For the same reason `payouts.connectStatus()` — a `payouts:read` surface —
+reports rail identity and state but never `config`. Read config from
+`GET /payouts/rails`, which needs `payout_rails:read`.
+
+See [Getting partners paid](/payouts/#scopes).
 
 ## Relationships
 
