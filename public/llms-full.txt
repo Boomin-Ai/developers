@@ -172,9 +172,18 @@ Per-call RequestOptions is the TRAILING argument of every method:
 `{ idempotencyKey, brand, timeout, maxRetries }`. Methods that take a body are
 `(id, params, options)`; verbs with no body take `{}` or `null` for params.
 
-Query params are camel->snake converted (`startingAfter` -> `starting_after`).
-REQUEST BODIES ARE NOT — send `enabled_events`, `value_minor`, `period_start`,
-`referral_code` exactly as the API names them.
+CASING (since @boomin/sdk 1.0.0-beta.2): the SDK speaks camelCase in BOTH
+directions. Request bodies and query params convert to the wire's snake_case on
+the way out (`periodStart` -> `period_start`); responses convert to camelCase on
+the way back (`download_url` -> `downloadUrl`). Already-snake keys you send pass
+through untouched, so `{ period_start }` still works. Sending BOTH spellings of
+one field throws `conflicting_parameters` rather than picking a winner.
+
+CUSTOMER-OWNED BLOBS ARE NEVER RENAMED, at any depth: a distribution's `spec`
+and `stats`, a deployment's `desired_state` / `observed_state` / `external_ids`,
+`metadata`, `permissions`, a performance event's `properties`, and a payout
+rail's `config.columns`. `properties.orderId` reads back as `properties.orderId`
+and a CSV header stays byte-identical.
 
 Lists resolve one page and are ALSO async-iterable across every page:
 
@@ -196,7 +205,10 @@ for await (const e of boomin.enrollments.list({ program })) { }  // every page
 - `events` — `list` (operational domain-event feed OUT)
 - `operations` — `retrieve` `list` `wait`
 - `webhooks` — `endpoints.create/retrieve/update/list/del/rotateSecret` + `constructEvent`
-- `payouts` — `list` `run` `exportCsv` `connectStatus` + `batches.list/retrieve`
+- `payouts` — `list` `run` `exportCsv` `connectStatus`
+- `payouts.rules` — `create` `retrieve` `list` `update` `archive`. NO `del()`: `payouts.rule_id` cascades, so a delete would take ledger rows with it.
+- `payouts.rails` — `create` `retrieve` `list` `update`. `create` is NOT an upsert.
+- `payouts.batches` — `create` `retrieve` `list` `export` `confirm` `cancel`
 
 ## Distribution lifecycle
 
@@ -460,19 +472,309 @@ depend on order (use `event.seq`).
 
 ## Payouts
 
-```js
-await boomin.payouts.run({ period_start: "2026-08-01", period_end: "2026-09-01" });
-const batch = await boomin.payouts.exportCsv({ period_start: "2026-08-01", period_end: "2026-09-01" });
+Three nouns. `payouts.rules` = how a partner EARNS. `payouts.rails` = how money
+physically LEAVES. `payouts.batches` = one frozen disbursement run. All nested
+under `/v1/platform/payouts` — they are parts of one supporting system, not three
+more top-level primitives competing with Distribution.
+
+```txt
+activity -> payout rule -> payout row (ledger) -> batch -> rail -> money out
 ```
 
-- `run` recomputes the period's rows (idempotent upsert). `period_start` must be strictly before `period_end`, else `invalid_period` (400). Batched rows are NEVER mutated by a re-run.
+### Routes and scopes (19)
+
+```txt
+GET  /payouts                            payouts:read
+POST /payouts/run                        payouts:write
+POST /payouts/export_csv                 payouts:write
+GET  /payouts/connect_status             payouts:read
+POST /payouts/rules                      payout_rules:write
+GET  /payouts/rules                      payout_rules:read
+GET  /payouts/rules/{id}                 payout_rules:read
+POST /payouts/rules/{id}                 payout_rules:write
+POST /payouts/rules/{id}/archive         payout_rules:write
+POST /payouts/rails                      payout_rails:write
+GET  /payouts/rails                      payout_rails:read
+GET  /payouts/rails/{id}                 payout_rails:read
+POST /payouts/rails/{id}                 payout_rails:write
+POST /payouts/batches                    payouts:write
+GET  /payouts/batches                    payouts:read
+GET  /payouts/batches/{id}               payouts:read
+POST /payouts/batches/{id}/export        payouts:write
+POST /payouts/batches/{id}/confirm       payouts:write
+POST /payouts/batches/{id}/cancel        payouts:write
+```
+
+There is deliberately no `/payouts/{id}` retrieve (a parameterized second
+segment would shadow the six literals) and no `disburse` route.
+
+### The end-to-end loop
+
+```js
+// 1. HOW MONEY LEAVES. Nothing is auto-created; do this first.
+await boomin.payouts.rails.create({
+  rail: "csv_batch",
+  config: {
+    format: "paypal_payouts_csv",           // required — no neutral default
+    walletFunded: false,
+    columns: [
+      { key: "email",     header: "Email" },
+      { key: "amount",    header: "Amount" },
+      { key: "currency",  header: "Currency" },
+      { key: "reference", header: "REF" },
+    ],
+  },
+  isDefault: true,
+});
+
+// 2. HOW A PARTNER EARNS.
+await boomin.payouts.rules.create({
+  name: "20% of tracked revenue",
+  type: "revenue_split",
+  scope: { type: "program", program: "prog_..." },
+  rateBps: 2000,
+});
+
+// 3. PRICE THE PERIOD.
+const run = await boomin.payouts.run({ periodStart: "2026-08-01", periodEnd: "2026-09-01" });
+// branch on run.outcome, never on a count
+
+// 4. EXPORT — 202 + an operation.
+const accepted = await boomin.payouts.exportCsv({ periodStart: "2026-08-01", periodEnd: "2026-09-01" });
+await boomin.operations.wait(accepted.operation, { timeout: 120000 });
+
+// 5. THE URL IS MINTED ON READ, not returned by the mutation.
+const batch = await boomin.payouts.batches.retrieve(accepted.batch);
+const csv = await fetch(batch.downloadUrl);
+
+// 6. AFTER PAYING IT OUT OF BAND.
+const confirmed = await boomin.payouts.batches.confirm(batch.id, { externalBatchRef: "PAYPAL-2026-08" });
+await boomin.operations.wait(confirmed.operation);
+```
+
+### payout_rule object
+
+```json
+{ "id": "prule_2331c58d-…", "object": "payout_rule", "name": "Registration CPA", "type": "cpa",
+  "scope": { "type": "program", "program": "prog_457041f6-…" },
+  "metric_key": "event_registration", "rate_bps": null, "per_unit_minor": 500,
+  "threshold": null, "bonus_minor": null, "window_key": null, "window_days": null,
+  "currency": "usd", "revenue_basis": "net", "status": "active",
+  "created_at": "2026-08-03T06:12:08.755Z", "updated_at": "2026-08-03T06:12:08.755Z" }
+```
+
+- THREE TYPES, and the type decides what is REQUIRED:
+  `revenue_split` needs `rate_bps` (0-10000) and always measures `gmv_cents`
+  (it IGNORES `metric_key`); `cpa` needs `metric_key` + `per_unit_minor`;
+  `threshold_bonus` needs `metric_key` + `threshold` + `bonus_minor`.
+- MONEY IS MINOR UNITS: `per_unit_minor` / `bonus_minor`, never `*_cents`. The
+  rule carries its own `currency` (default `usd`) and "cents" is USD-specific.
+  `rate_bps` is basis points; 2000 = 20.00%.
+- SCOPE IS A DISCRIMINATED OBJECT. `{type:"program", program}` /
+  `{type:"collection", program, collection}` / `{type:"unit", program, unit}` /
+  `{type:"member", program, member}`. The wire NEVER exposes `applies_to`,
+  `scope_id` or `program_id` — those are physical columns, and a public shape
+  that let you set them independently would let you SPELL an incoherent scope.
+  `program` is required on EVERY variant, because the evaluator resolves
+  recipients through program membership and skips any rule without one.
+- `threshold_bonus` with `window_days` measures the trailing window ending at
+  `period_end`; without it, the partner's ALL-TIME total for that metric.
+- `metric_key` vocabulary (closed, mirrored by a DB CHECK): followers, views,
+  post_count, collab_posts, link_clicks, referral_count, gmv_cents, sales_count,
+  product_usage_count, channel_connected, manual_approval, event_registration,
+  template_install.
+- `revenue_basis` is server-set to `net`; it is not a create parameter but IS
+  frozen, so sending it to update errors rather than no-opping.
+- Ids: `prule_`.
+
+### Both activity rails feed one metric vocabulary
+
+A performance event recorded against a DEPLOYMENT is projected onto the enrolled
+member's metric ledger, which is the same ledger evergreen program activity
+writes to. That is why ONE rule can pay for both. Type -> metric_key mapping:
+
+```txt
+sale | purchase -> gmv_cents          (amount from value_minor)
+registration    -> event_registration (amount from quantity)
+click           -> link_clicks        (amount from quantity)
+referral        -> referral_count     (amount from quantity)
+install         -> template_install   (amount from quantity)
+```
+
+A `type` that is already a metric key passes through under its own name.
+Projection is skipped entirely if the deployment carries no program enrollment.
+
+CAVEAT: a rule scopes to a PROGRAM, never to a distribution or deployment. It
+cannot price evergreen activity differently from distribution-attributed
+activity — from the ledger's side both are the same member's `gmv_cents`. For
+different economics per campaign, scope separate rules to separate programs.
+
+### RULE ECONOMICS ARE IMMUTABLE
+
+`POST /payouts/rules/{id}` accepts `name` and `status` ONLY. Anything else:
+
+```json
+{ "error": { "code": "immutable_parameter", "param": "rate_bps",
+  "message": "'rate_bps' cannot be changed after a payout rule is created — the payouts ledger references this rule, so editing its economics would re-interpret settled history. Create a replacement rule, activate it, then archive this one with POST /v1/platform/payouts/rules/{id}/archive." } }
+```
+
+Frozen: type, scope, metric_key, rate_bps, per_unit_minor, threshold,
+bonus_minor, window_key, window_days, currency, revenue_basis — plus the
+physical and legacy spellings applies_to, scope_id, program, program_id,
+per_unit_cents, bonus_cents. `param` names the CONCEPT, not the key you sent
+(`program_id` is answered with `scope`).
+
+WHY: the ledger references the rule that produced each row. Edit the rate and
+the same `prule_` id describes two different bargains with nothing recording
+which applied. TO CHANGE ECONOMICS: create a replacement rule -> activate it ->
+archive the old one. Sequence it between runs, or create the replacement paused,
+so a revenue_split does not double-pay the overlap.
+
+The immutability check runs BEFORE schema validation on purpose: `rate_bps` is a
+real, correctly-spelled field, so a sealed schema would have called it "unknown"
+and suggested `name`.
+
+### RULES ARE ARCHIVED, NEVER DELETED
+
+`POST /payouts/rules/{id}/archive` — `boomin.payouts.rules.archive(id)`. There is
+no DELETE route and no `del()` method, because `payouts.rule_id` is
+ON DELETE CASCADE: a hard delete would take every ledger row the rule produced
+with it. Archiving stops the rule firing on the next run and leaves history
+readable. Idempotent.
+
+### payout_rail object
+
+```json
+{ "id": "prail_db003d33-…", "object": "payout_rail", "rail": "csv_batch", "status": "active",
+  "is_default": true,
+  "config": { "format": "paypal_payouts_csv", "wallet_funded": false,
+              "columns": [ { "key": "email", "header": "Email" },
+                           { "key": "amount", "header": "Amount" } ] },
+  "livemode": true, "created_at": "…", "updated_at": "…" }
+```
+
+- NO RAIL IS AUTO-CREATED. Building or exporting without one is typed
+  `payout_rail_required` (409) — never a default guess. Every "not configured"
+  path (no rail of that kind, no default, a default nothing can batch, a
+  disabled rail) collapses into that ONE code, because they are one problem with
+  one fix. `config.format` has no default either: PayPal's and Wise's column
+  sets differ, so choosing one for you would be choosing the file your bank
+  reads.
+- `config.columns` IS YOUR DATA. The SDK converts `walletFunded` ->
+  `wallet_funded` like any field, but touches NOTHING inside `columns` — no key,
+  no value, at any depth. Headers survive byte-for-byte in the order sent, so a
+  header of `payoutAmount` reaches the file as `payoutAmount`. On this surface a
+  rename is a money bug, not a cosmetic one. (One caveat: `config` is jsonb and
+  Postgres normalises key order WITHIN an object, so `{header,key}` reads back
+  as `{key,header}`. Array order and every name and value survive.)
+- `columns[].key` is a CLOSED vocabulary: email, name, amount, amount_cents,
+  currency, reference, note. 1-50 columns. An unknown key would render as
+  `undefined` in whatever column it named, so it is a 400.
+- `config.format`: `paypal_payouts_csv` | `wise_batch_csv`.
+- `wallet_funded: true` turns confirm into a guarded brand-wallet debit per item.
+- `create` IS NOT AN UPSERT: a second create for a configured rail is
+  `payout_rail_already_exists` (409); you must say `update` out loud, because a
+  call reading as "add a rail" must never silently rewrite where money lands.
+- On update, `config` REPLACES the stored object wholesale — no merge, because a
+  merge cannot express "remove this key" and a half-applied column mapping is a
+  file that pays the wrong column.
+- ONE ACTIVE DEFAULT per (brand, livemode), enforced by a partial unique index.
+  Setting `is_default: true` on a second rail atomically clears the first; two
+  racers both succeed and the DB ends with exactly one default.
+- THE `stripe_connect` RAIL CANNOT PAY ANYONE TODAY. It is configurable (with an
+  empty config — every csv key is refused rather than accepted-and-ignored), but
+  partner disbursement needs a transfers-only Express capability that is not
+  approved on Boomin's Stripe platform account, so partners have no onboarding
+  path. There is deliberately NO `disburse` route: an absent route beats one
+  that always 500s. `connect_status.stripe.partner_accounts_payouts_enabled`
+  stays at 0. Use `csv_batch`.
+- Ids: `prail_`.
+
+### payouts.run — TWO OUTCOMES
+
+NO ACTIVE RULE AND NO ACTIVE CONTENT SPLIT -> typed `payout_rules_required`
+(409). A configuration error, not an empty result; it must fail a scheduled job
+rather than let a payout job "succeed" every month while paying nobody. (Both
+sources are counted: a brand that pays only through content splits is correctly
+configured.)
+
+RULES RAN, NOTHING QUALIFIED -> SUCCESS:
+
+```json
+{ "object": "payout_run", "outcome": "no_eligible_activity",
+  "rules_evaluated": 3, "splits_evaluated": 0, "events_evaluated": 14,
+  "payouts_created": 0, "underfunded": 0, "awaiting_account": 0,
+  "payouts": [],
+  "summary": { "total_amount_minor": 0, "count": 0, "awaiting_account": 0,
+               "bridged": 0, "unresolved_recipients": 0 } }
+```
+
+Branch on `outcome` (`payouts_created` | `no_eligible_activity`), never on a
+count and never on prose — there is no `warnings[]` by design. `underfunded` is
+structurally 0 (payout compute records OBLIGATIONS and never draws a budget).
+
+WATCH OUT: `outcome` / `payouts_created` / `awaiting_account` describe THIS RUN,
+while `summary` describes THE WHOLE PERIOD'S LEDGER including rows earlier runs
+created. A re-run can report `no_eligible_activity` beside a non-zero
+`summary.count`. Both are true; they answer different questions.
+
+`run` is an idempotent upsert and NEVER mutates a row already pulled into a live
+batch, so a period can be safely re-run after partial export.
+`period_start` must be strictly before `period_end`, else `invalid_period` (400).
+
+### Batches
+
 - Payout statuses: `pending` `awaiting_account` `processing` `paid` `failed`.
-- Eligible for a batch = status `pending` or `awaiting_account` AND not brand-bridged (brand-bridged rows stay on the wallet rail — never both).
-- `exportCsv` builds a `csv_batch` over eligible rows, exports it, and returns `download_url`. Answers 201. READ `skipped` — it names rows left out and why.
-- Column maps for PayPal / Wise are per-brand config. The confirm and money-move steps are finance-gated and live in the app, not the Platform API.
-- `connectStatus` returns configured rails plus `stripe: { configured, partner_accounts, partner_accounts_payouts_enabled }`. Check it BEFORE a run.
-- `batches.list` returns every batch in one envelope (no pagination, `has_more` always false); `batches.retrieve` adds `items`.
-- The `stripe_connect` rail disburses to partner Express accounts, keyed per payout item so a retry cannot double-send, with reversal on failure.
+- ELIGIBLE for a csv_batch = status `pending` OR `awaiting_account` AND not
+  brand-bridged (bridged rows settle on the wallet rail — never both). A
+  `stripe_connect` batch takes `pending` only.
+- `awaiting_account` IS THE NORMAL STATUS: a row is `pending` only when its
+  recipient already has an active, payouts-enabled payout account, and partner
+  onboarding is gated. `csv_batch` batches those rows anyway — paying people who
+  have no Boomin-side payout account is what the CSV rail is FOR.
+- `batches.create` is SYNCHRONOUS (201) — the build is one DB transaction
+  whatever the item count. Resolves the batch plus `items` and `skipped`.
+- `skipped` IS A COUNT, not a list: eligible rows dropped for want of a recipient
+  handle (no email on csv_batch, no onboarded Stripe account on stripe_connect).
+  They stay eligible for a later batch. ALL rows skipped -> `payout_batch_empty`
+  (409) carrying the same count.
+- `batches.export` and `payouts.export_csv` BOTH answer 202
+  `{batch, status:"exporting", operation}` as id STRINGS — one export contract,
+  not two. `export_csv` is build + export in one verb and additionally carries
+  `items` and `skipped`, because its build half is synchronous, so
+  `payout_rail_required` and `payout_batch_empty` still come back immediately and
+  typed rather than being discovered by polling a doomed operation.
+- `download_url` IS NOT IN THE 202. It is minted on READ of
+  `GET /payouts/batches/{id}`, regenerated every time. A URL handed back by the
+  mutation would already be expiring by the time an operator opened it and could
+  not be re-obtained without re-exporting. `download_url: null` on a batch that
+  HAS an `export_file_key` means presigning credentials are unavailable — the
+  file exists but was NOT delivered; treat it as a failure.
+- Repeating an export replays the same operation AND writes the same object key:
+  one batch can never produce two artifacts.
+- `batches.confirm` answers 202 `{batch, status:"confirming", operation}`. It is
+  an Operation because the work is UNBOUNDED: item count has no cap and items
+  settle one at a time (plus a guarded wallet debit each when the rail is
+  wallet_funded), which would exceed a Worker's subrequest budget and die
+  mid-settlement with some items paid and no resume handle. Every leg is fenced
+  and keyed on the item id, so a retry finishes rather than restarts.
+- Repeating a confirm with the SAME `external_batch_ref` replays ONE operation,
+  so an operator's retry after a timeout cannot settle the run twice.
+- `results[].item` names a batch ITEM id — a BARE UUID from `batch.items`, not a
+  prefixed id. `status` is `paid` | `failed` | `returned`, optional `reason`, max
+  1000 entries. Naming an item not in the batch is a typed 400 on `results`. Omit
+  `results` and every item settles `paid`.
+- `batches.cancel` is synchronous and unfreezes an unsettled batch.
+- Batch statuses: draft, exporting, exported, submitted, reconciling, completed,
+  partially_paid, failed, canceled. Item statuses: pending, processing, paid,
+  failed, returned, canceled.
+- `batches.list` honours `limit` / `starting_after` in memory (batches are few) —
+  but it DOES honour them. Ids: `pob_`.
+- `connect_status` returns rails (identity and state ONLY, never `config` — that
+  is a payout_rails:read surface) plus
+  `stripe: { configured, partner_accounts, partner_accounts_payouts_enabled }`.
+  `configured` reports whether a Stripe key is present, NOT whether anyone can be
+  paid.
 
 ## Errors
 
@@ -484,7 +786,10 @@ SDK classes: `BoominError` (base: `code`, `status`, `requestId`, `param`, `raw`)
 `AuthenticationError`, `PermissionError`, `InvalidRequestError`, `RateLimitError`,
 `ConflictError`, `APIError`, plus promoted `OperationConflictError`,
 `BandLimitReachedError`, `FundingRequiredError`,
-`WebhookSignatureVerificationError`.
+`WebhookSignatureVerificationError`, `ImmutableParameterError`,
+`ConflictingParametersError`, `PayoutRulesRequiredError`,
+`PayoutRailRequiredError`, `PayoutRailAlreadyExistsError`,
+`PayoutBatchEmptyError`, `PayoutBatchStateError`.
 
 Class selection: first by typed `code`, then by HTTP status.
 400/402/404/422 -> InvalidRequestError, 401 -> AuthenticationError,
@@ -511,6 +816,14 @@ Key codes and recovery:
 - `idempotency_key_conflict` (409) — same key, different body. Use a fresh key.
 - `invalid_cursor` / `invalid_status` / `invalid_event_type` / `invalid_period` / `invalid_request` (400).
 - `create_rate_limit_exceeded` (429) — back off and retry.
+- `payout_rules_required` (409) -> PayoutRulesRequiredError — `payouts.run` on a brand with no active rule AND no active content split. Configuration error; create a rule.
+- `payout_rail_required` (409) -> PayoutRailRequiredError — no active rail of the requested kind, or no usable default. Nothing is auto-provisioned; configure one.
+- `payout_rail_already_exists` (409) -> PayoutRailAlreadyExistsError — `rails.create` is not an upsert. Call `rails.update` explicitly.
+- `immutable_parameter` (400) -> ImmutableParameterError — a rule's economics are frozen after creation. `param` names the frozen CONCEPT. Create a replacement rule, activate it, archive the old one.
+- `payout_batch_empty` (409) -> PayoutBatchEmptyError — no settle-able row for this rail and period.
+- `payout_batch_conflict` / `payout_batch_not_exportable` / `_not_confirmable` / `_not_cancelable` / `_not_disbursable` (409) -> PayoutBatchStateError — read the batch and look at `status`.
+- `payout_rule_not_found` / `payout_rail_not_found` (404).
+- `conflicting_parameters` -> ConflictingParametersError — a camelCase key and its snake_case twin both appeared in one body, query, or response. Send one spelling.
 - Lifecycle 409s: `distribution_not_editable`, `distribution_programs_draft_only`, `distribution_not_validatable`, `distribution_not_ready`, `distribution_not_pausable|_resumable|_cancelable`, `deployment_not_pausable|_resumable|_cancelable`, `enrollment_not_pausable|_resumable`, `partnership_not_pausable|_resumable|_endable`, `connection_not_revocable`.
 - `test_mode_not_yet_available` (400) — `sk_test_`/`pk_test_` are reserved but not built.
 - `developer_access_paused` (503) — operator kill switch. Retry later.
@@ -692,7 +1005,7 @@ Deleting a requirement ARCHIVES it and re-evaluates the program.
 `programs.tiers` are keyed by `rank` — creating at an existing rank upserts;
 lists come back ordered by ascending rank.
 
-## CLI 0.3.0
+## CLI 0.4.0
 
 Setup: `login`, `logout`, `status`, `doctor`, `init`.
 Keys: `token create|list|revoke|rotate`, `scopes`, `scopes explain <scope>`.
@@ -707,6 +1020,9 @@ npx @boomin/cli enrollment invite|approve|reject|list|get
 npx @boomin/cli partnership list|get|pause|resume|end
 npx @boomin/cli connection list|get|revoke
 npx @boomin/cli payout list|run|export|connect
+npx @boomin/cli payout rules list|create|show|update|archive
+npx @boomin/cli payout rails list|create|show|update
+npx @boomin/cli payout batches list|show|create|export|confirm|cancel
 npx @boomin/cli webhook create|list|delete|rotate-secret
 npx @boomin/cli events list --type <event.type>
 ```
@@ -813,6 +1129,15 @@ Distribution core: `org:read`, `distributions:read`, `distributions:write`,
 `distributions:launch`, `deployments:read`, `performance:read`,
 `performance:write`, `operations:read` (IMPLICITLY GRANTED to every valid token),
 `events:read`, `payouts:read`, `payouts:write`.
+
+Payout CONFIGURATION (separate from execution): `payout_rules:read|write`,
+`payout_rails:read|write`. `payouts:write` moves money the brand already owes; a
+rail's column mapping decides WHICH FIELD of a payout row lands in the recipient
+column of a file a human uploads to a bank, which is closer to banking
+configuration than to payout execution. So a key that runs the monthly payout
+job cannot also redirect where the money lands. For the same reason
+`GET /payouts/connect_status` (a `payouts:read` surface) reports rail identity
+and state but NEVER `config` — read config from `GET /payouts/rails`.
 
 Relationships: `partnerships:read|write`, `enrollments:read|write`,
 `connections:read|write`, `partners:read`.
