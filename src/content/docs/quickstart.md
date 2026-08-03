@@ -6,16 +6,20 @@ description: From a fresh machine to a launched, funded distribution with webhoo
 The golden path, end to end. Every command and snippet on this page is meant to
 be run in order on a clean machine. It takes about fifteen minutes.
 
-You will: sign up, mint a platform key, install the SDK, create a program, embed
-Partner Connect, invite and approve a partner, create and launch a **funded
-distribution**, poll the launch operation, receive a signed webhook, and export
-a payout CSV.
+You will: sign up, mint a platform key, install the SDK, create a program,
+configure a **payout rail** and a **payout rule**, embed Partner Connect, invite
+and approve a partner, create and launch a **funded distribution**, poll the
+launch operation, receive a signed webhook, run payouts, and download a CSV that
+pays your partners.
+
+That last part is the point. The loop is not closed until money can leave.
 
 :::note[Which rail are you on?]
 This quickstart walks the **distribution** rail. If all you need is an
-always-on referral program — codes, qualification, rewards, no launches — stop
-after step 5; that is a complete product on its own. See
-[The distribution model](/concepts/model/) for the difference.
+always-on referral program — codes, qualification, rewards, no launches — do
+steps 1–7, then jump to step 13. That is a complete product on its own, and the
+payout half is identical: rules and rails do not care which rail the activity
+came in on. See [The distribution model](/concepts/model/) for the difference.
 :::
 
 ## 1. Sign up and log in
@@ -57,9 +61,14 @@ the app under **Developers**, or from the CLI:
 ```bash
 npx @boomin/cli token create \
   --name "Quickstart server" \
-  --scopes org:read,programs:read,partnerships:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write \
+  --scopes org:read,programs:read,partnerships:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write,payout_rules:read,payout_rules:write,payout_rails:read,payout_rails:write \
   --save
 ```
+
+Note the four payout **configuration** scopes at the end. `payouts:write` moves
+money the brand already owes; it deliberately does not also let a key create
+rules or redirect where money lands. In production, mint those on a separate,
+rarely-used key — see [scopes](/payouts/#scopes).
 
 The secret is shown **once**. Put it in your server's secret manager or an env
 var:
@@ -89,7 +98,82 @@ export const boomin = new Boomin(process.env.BOOMIN_SECRET_KEY);
 The SDK is `fetch` + WebCrypto only — Node ≥ 18, Cloudflare Workers, Bun, Deno,
 and edge runtimes. Zero dependencies.
 
-## 5. Embed Partner Connect (get partners in)
+## 5. Configure a payout rail
+
+**Do this before anything earns.** A rail is how money physically leaves. None
+is created for you, and nothing exports until one exists.
+
+```js
+const rail = await boomin.payouts.rails.create({
+  rail: "csv_batch",
+  config: {
+    format: "paypal_payouts_csv",     // or "wise_batch_csv" — required
+    walletFunded: false,
+    columns: [
+      { key: "email",     header: "Email" },
+      { key: "amount",    header: "Amount" },
+      { key: "currency",  header: "Currency" },
+      { key: "reference", header: "REF" },
+    ],
+  },
+  isDefault: true,
+});
+
+console.log(rail.id, rail.rail, rail.isDefault);
+// prail_...  csv_batch  true
+```
+
+`config.format` has no default: PayPal's and Wise's column sets differ, so
+choosing one for you would be choosing the file your bank reads. Skipping this
+step surfaces later as a typed `payout_rail_required` **409**, not a guess.
+
+Your `columns` headers are passed through byte-for-byte — the SDK converts
+`walletFunded` → `wallet_funded` but never touches anything inside `columns`.
+
+:::note[The stripe_connect rail cannot pay anyone yet]
+Partner disbursement over Stripe Connect is blocked on a platform capability
+that is not yet approved, so partners have no onboarding path and there is no
+`disburse` route. `csv_batch` is the rail that works today.
+:::
+
+## 6. Create a payout rule
+
+A rule is how a partner **earns**. Scope it to the program from step 2:
+
+```js
+const rule = await boomin.payouts.rules.create({
+  name: "20% of tracked revenue",
+  type: "revenue_split",
+  scope: { type: "program", program: process.env.BOOMIN_PROGRAM_ID },
+  rateBps: 2000,          // 20.00%
+  currency: "usd",
+});
+
+console.log(rule.id, rule.type, rule.rateBps);
+// prule_...  revenue_split  2000
+```
+
+Or pay a flat amount per conversion instead:
+
+```js
+await boomin.payouts.rules.create({
+  name: "Registration CPA",
+  type: "cpa",
+  scope: { type: "program", program: process.env.BOOMIN_PROGRAM_ID },
+  metricKey: "event_registration",
+  perUnitMinor: 500,      // $5.00 — minor units, never "cents"
+});
+```
+
+:::caution[Economics freeze here]
+After creation only `name` and `status` can change. Sending `rateBps` to
+`update` throws `ImmutableParameterError` — the payouts ledger references this
+rule, so editing its rate would re-interpret settled history. To change money:
+create a replacement rule, then `boomin.payouts.rules.archive(rule.id)`. There
+is no delete. [Why](/payouts/#2-rule-economics-are-immutable)
+:::
+
+## 7. Embed Partner Connect (get partners in)
 
 Partner Connect is the browser surface where a partner joins your program.
 Install it in your app's frontend:
@@ -137,7 +221,7 @@ Inviting upserts the partner identity, creates the durable partnership
 At this point the evergreen rail is already live: that `referral_code` resolves
 and attributes.
 
-## 6. Create a funded distribution
+## 8. Create a funded distribution
 
 ```js
 const distribution = await boomin.distributions.create({
@@ -166,7 +250,7 @@ console.log(distribution.id, distribution.status);
 distribution (`mode: "none"`). The `spec` above is the default plan — you can
 drop it and get the same single referral-link slot.
 
-## 7. Validate, then launch
+## 9. Validate, then launch
 
 ```js
 const validated = await boomin.distributions.validate(distribution.id);
@@ -185,7 +269,7 @@ console.log(accepted);
 never a synchronous success and never an embedded object. The operation is the
 progress surface.
 
-## 8. Poll the operation
+## 10. Poll the operation
 
 ```js
 const operation = await boomin.operations.wait(accepted.operation, {
@@ -222,7 +306,7 @@ Each deployment owns its **own** attribution instrument, distinct from the
 program's evergreen referral code — so two distributions sharing one enrollment
 credit separately.
 
-## 9. Record a conversion
+## 11. Record a conversion
 
 Business measurements go in against a deployment:
 
@@ -241,7 +325,7 @@ const summary = await boomin.performance.summary({ distribution: distribution.id
 console.log(summary.events, summary.value_minor, summary.by_type);
 ```
 
-## 10. Receive a webhook
+## 12. Receive a webhook
 
 Register an endpoint. The signing secret is revealed **once**, in this response
 only.
@@ -292,44 +376,180 @@ export default {
 Header format, the 24h rotation overlap, and the retry schedule are in
 [Receiving webhooks](/sdk/webhooks/).
 
-## 11. Export a payout CSV
+## 13. Run payouts
 
-Recompute the period's payout rows, then export the operator CSV on the
-`csv_batch` rail:
+Turn the period's measured activity into ledger rows, using the rule from
+step 6:
 
 ```js
-await boomin.payouts.run({
-  period_start: "2026-08-01",
-  period_end: "2026-09-01",
+const result = await boomin.payouts.run({
+  periodStart: "2026-08-01",
+  periodEnd: "2026-09-01",
 });
 
-const batch = await boomin.payouts.exportCsv({
-  period_start: "2026-08-01",
-  period_end: "2026-09-01",
-});
-
-console.log(batch.id, batch.status, batch.download_url);
-// pob_...  ...  https://...
+console.log(result.outcome, result.payoutsCreated, result.awaitingAccount);
+// "payouts_created"  1  1
 ```
 
-Or from the CLI, straight to a file:
+Two outcomes, and they mean different things:
+
+| Result | Meaning |
+| --- | --- |
+| throws `PayoutRulesRequiredError` (409) | Nothing is configured — you skipped step 6. **Your bug.** |
+| `outcome: "no_eligible_activity"` | Configured fine; the window held no compensable activity. **Success.** |
+| `outcome: "payouts_created"` | Rows written. |
+
+```js
+import { PayoutRulesRequiredError } from "@boomin/sdk";
+
+try {
+  const result = await boomin.payouts.run({ periodStart: "2026-08-01", periodEnd: "2026-09-01" });
+  if (result.outcome === "no_eligible_activity") {
+    console.log(`nothing qualified — ${result.rulesEvaluated} rules over ${result.eventsEvaluated} events`);
+  }
+} catch (err) {
+  if (err instanceof PayoutRulesRequiredError) {
+    console.error("create a payout rule first");
+  } else throw err;
+}
+```
+
+Branch on `outcome`, never on a count. In a scheduled job the distinction is
+what stops a misconfigured brand from "succeeding" every month while paying
+nobody.
+
+Fresh rows will read `awaiting_account` — money owed to a recipient with no
+Boomin-side payout account. That is expected, and the CSV rail batches them
+anyway.
+
+## 14. Export the CSV and download it
+
+```js
+const accepted = await boomin.payouts.exportCsv({
+  periodStart: "2026-08-01",
+  periodEnd: "2026-09-01",
+});
+console.log(accepted);
+// { batch: "pob_...", status: "exporting", operation: "op_...", items: [...], skipped: 0 }
+
+const operation = await boomin.operations.wait(accepted.operation, { timeout: 120000 });
+if (operation.status !== "succeeded") throw new Error(`export ${operation.status}`);
+
+const batch = await boomin.payouts.batches.retrieve(accepted.batch);
+console.log(batch.itemCount, batch.totalAmountCents, batch.downloadUrl);
+// 1  1000  https://...
+```
+
+Three things here surprise people:
+
+- **`exportCsv` answers 202, not 201.** Writing the file is an operation. The
+  build half still runs synchronously, so `payout_rail_required` and
+  `payout_batch_empty` come back immediately and typed.
+- **`downloadUrl` is not in the 202.** It is presigned and short-lived, so it is
+  minted on every *read* of the batch instead of expiring inside a stored
+  response body.
+- **`skipped` is a count**, not a list — eligible rows dropped for want of a
+  recipient email. They stay eligible for a later batch.
+
+Fetch the file:
+
+```js
+const res = await fetch(batch.downloadUrl);
+await writeFile("payouts.csv", Buffer.from(await res.arrayBuffer()));
+```
+
+The header row is exactly the `columns` you configured in step 5:
+
+```csv
+Email,Amount,Currency,REF
+creator@example.com,10.00,USD,2d7c12ab-…
+```
+
+Or let the CLI do the whole thing:
 
 ```bash
 npx @boomin/cli payout run --period-start 2026-08-01 --period-end 2026-09-01
 npx @boomin/cli payout export --period-start 2026-08-01 --period-end 2026-09-01 --out payouts.csv
 ```
 
+`payout export --out` polls the operation, reads the batch, and writes the file.
+An operation that ends anything but `succeeded` exits non-zero rather than
+leaving an empty file behind.
+
+## 15. Pay it, then confirm
+
+Upload `payouts.csv` to PayPal or Wise, then tell Boomin what happened so the
+ledger settles:
+
+```js
+const confirmed = await boomin.payouts.batches.confirm(batch.id, {
+  externalBatchRef: "PAYPAL-2026-08",
+});
+await boomin.operations.wait(confirmed.operation);
+```
+
+With no `results`, every item settles as `paid`. To report per-item outcomes,
+name the item ids from `batch.items`:
+
+```js
+await boomin.payouts.batches.confirm(batch.id, {
+  externalBatchRef: "PAYPAL-2026-08",
+  results: [
+    { item: batch.items[0].id, status: "paid" },
+    { item: batch.items[1].id, status: "failed", reason: "recipient email bounced" },
+  ],
+});
+```
+
+Repeating a confirm with the **same** `externalBatchRef` replays one operation,
+so a retry after a timeout cannot settle the run twice.
+
+```bash
+npx @boomin/cli payout batches confirm pob_... --external-batch-ref PAYPAL-2026-08
+```
+
+The loop is now closed: a partner joined, a distribution ran, a conversion was
+measured, a rule priced it, and a rail paid it.
+
 ## The whole thing, in one file
 
 ```js
 import Boomin from "@boomin/sdk";
 
+import { writeFile } from "node:fs/promises";
+
 const boomin = new Boomin(process.env.BOOMIN_SECRET_KEY);
 const program = process.env.BOOMIN_PROGRAM_ID;
+const period = { periodStart: "2026-08-01", periodEnd: "2026-09-01" };
 
+// 1. How money leaves.
+await boomin.payouts.rails.create({
+  rail: "csv_batch",
+  config: {
+    format: "paypal_payouts_csv",
+    columns: [
+      { key: "email",     header: "Email" },
+      { key: "amount",    header: "Amount" },
+      { key: "currency",  header: "Currency" },
+      { key: "reference", header: "REF" },
+    ],
+  },
+  isDefault: true,
+});
+
+// 2. How a partner earns.
+await boomin.payouts.rules.create({
+  name: "20% of tracked revenue",
+  type: "revenue_split",
+  scope: { type: "program", program },
+  rateBps: 2000,
+});
+
+// 3. Get a partner in.
 const enrollment = await boomin.enrollments.create({ program, email: "creator@example.com" });
 await boomin.enrollments.approve(enrollment.id);
 
+// 4. Launch a funded distribution.
 const distribution = await boomin.distributions.create({
   name: "Spring launch",
   objective: "launch",
@@ -340,14 +560,37 @@ const distribution = await boomin.distributions.create({
 const { valid, errors } = await boomin.distributions.validate(distribution.id);
 if (!valid) throw new Error(JSON.stringify(errors));
 
-const accepted = await boomin.distributions.launch(distribution.id);
-const operation = await boomin.operations.wait(accepted.operation, { timeout: 120000 });
-console.log(operation.status);
+const launched = await boomin.distributions.launch(distribution.id);
+const launchOp = await boomin.operations.wait(launched.operation, { timeout: 120000 });
+console.log(launchOp.status);
+
+// 5. Price the period and pay it.
+const run = await boomin.payouts.run(period);
+console.log(run.outcome, run.payoutsCreated);
+
+const accepted = await boomin.payouts.exportCsv(period);
+const exportOp = await boomin.operations.wait(accepted.operation, { timeout: 120000 });
+if (exportOp.status !== "succeeded") throw new Error(`export ${exportOp.status}`);
+
+const batch = await boomin.payouts.batches.retrieve(accepted.batch);
+const csv = await fetch(batch.downloadUrl).then((r) => r.arrayBuffer());
+await writeFile("payouts.csv", Buffer.from(csv));
+
+// 6. After paying it out of band:
+const confirmed = await boomin.payouts.batches.confirm(batch.id, {
+  externalBatchRef: "PAYPAL-2026-08",
+});
+await boomin.operations.wait(confirmed.operation);
 ```
 
 ## Same path from the CLI
 
 ```bash
+npx @boomin/cli payout rails create --rail csv_batch \
+  --format paypal_payouts_csv --default \
+  --columns '[{"key":"email","header":"Email"},{"key":"amount","header":"Amount"}]'
+npx @boomin/cli payout rules create --name "Rev share" --type revenue_split \
+  --program prog_... --rate-bps 2000
 npx @boomin/cli enrollment invite --program prog_... --email creator@example.com
 npx @boomin/cli enrollment approve enr_...
 npx @boomin/cli distribution create --name "Spring launch" --objective launch \
@@ -355,12 +598,15 @@ npx @boomin/cli distribution create --name "Spring launch" --objective launch \
 npx @boomin/cli distribution validate dist_...
 npx @boomin/cli distribution launch dist_...        # polls the operation to terminal
 npx @boomin/cli webhook create --url https://your-app.com/webhooks/boomin
-npx @boomin/cli payout export --out payouts.csv
+npx @boomin/cli payout run --period-start 2026-08-01 --period-end 2026-09-01
+npx @boomin/cli payout export --period-start 2026-08-01 --period-end 2026-09-01 --out payouts.csv
+npx @boomin/cli payout batches confirm pob_... --external-batch-ref PAYPAL-2026-08
 ```
 
 ## Next
 
+- [Getting partners paid](/payouts/) — the money model, and the five things that surprise people.
 - [The distribution model](/concepts/model/) — the nouns, and the two rails.
 - [Distributions](/distributions/) — lifecycle, budgets, cancellation.
-- [SDK reference](/sdk/) — all twelve resource clients.
+- [SDK reference](/sdk/) — every resource client.
 - [Errors](/sdk/errors/) — the typed code registry and how to recover.

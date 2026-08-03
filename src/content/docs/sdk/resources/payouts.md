@@ -7,13 +7,27 @@ description: Compute the period ledger, export the operator CSV, and check disbu
 grouped into batches by a payout rail.
 
 ```js
-await boomin.payouts.run({ period_start: "2026-08-01", period_end: "2026-09-01" });
-const batch = await boomin.payouts.exportCsv({
-  period_start: "2026-08-01",
-  period_end: "2026-09-01",
+await boomin.payouts.run({ periodStart: "2026-08-01", periodEnd: "2026-09-01" });
+
+const accepted = await boomin.payouts.exportCsv({
+  periodStart: "2026-08-01",
+  periodEnd: "2026-09-01",
 });
-console.log(batch.download_url);
+await boomin.operations.wait(accepted.operation, { timeout: 120000 });
+
+const batch = await boomin.payouts.batches.retrieve(accepted.batch);
+console.log(batch.downloadUrl);
 ```
+
+Configuration lives on three nested clients, each with its own page:
+
+| Client | Covers |
+| --- | --- |
+| [`payouts.rules`](/sdk/resources/payout-rules/) | How a partner **earns** |
+| [`payouts.rails`](/sdk/resources/payout-rails/) | How money physically **leaves** |
+| [`payouts.batches`](/sdk/resources/payout-batches/) | One frozen disbursement run |
+
+Start with [Getting partners paid](/payouts/) for the model.
 
 | Method | Route | Scope |
 | --- | --- | --- |
@@ -21,70 +35,129 @@ console.log(batch.download_url);
 | `run(params, options)` | `POST /payouts/run` | `payouts:write` |
 | `exportCsv(params, options)` | `POST /payouts/export_csv` | `payouts:write` |
 | `connectStatus(params, options)` | `GET /payouts/connect_status` | `payouts:read` |
-| `batches.list(params, options)` | `GET /payouts/batches` | `payouts:read` |
-| `batches.retrieve(id, options)` | `GET /payouts/batches/{id}` | `payouts:read` |
 
 ## run
 
 ```js
 const result = await boomin.payouts.run({
-  period_start: "2026-08-01",   // YYYY-MM-DD, required
-  period_end: "2026-09-01",     // YYYY-MM-DD, required
+  periodStart: "2026-08-01",   // YYYY-MM-DD, required
+  periodEnd: "2026-09-01",     // YYYY-MM-DD, required
 });
-// { object: "payout_run", payouts: [...], summary: { ... } }
 ```
 
 Recomputes the period's payout rows. It is an idempotent upsert: running it
 twice over the same period converges rather than duplicating.
 
-`period_start` must be strictly before `period_end`, or `invalid_period` (400).
+`periodStart` must be strictly before `periodEnd`, or `invalid_period` (400).
+
+### Two outcomes, and only one is yours to fix
+
+**Nothing configured** — no active payout rule *and* no active content split on
+the brand — throws `PayoutRulesRequiredError` (`payout_rules_required`, 409). No
+input could have produced a payout, so this is a configuration error rather than
+an empty result.
+
+**Rules ran, nothing qualified** — success:
+
+```json
+{
+  "object": "payout_run",
+  "outcome": "no_eligible_activity",
+  "rules_evaluated": 3,
+  "splits_evaluated": 0,
+  "events_evaluated": 14,
+  "payouts_created": 0,
+  "underfunded": 0,
+  "awaiting_account": 0,
+  "payouts": [],
+  "summary": { "total_amount_minor": 0, "count": 0, "awaiting_account": 0, "bridged": 0, "unresolved_recipients": 0 }
+}
+```
+
+```js
+import { PayoutRulesRequiredError } from "@boomin/sdk";
+
+try {
+  const result = await boomin.payouts.run({ periodStart, periodEnd });
+  if (result.outcome === "no_eligible_activity") {
+    console.log(`nothing qualified — ${result.rulesEvaluated} rules over ${result.eventsEvaluated} events`);
+  }
+} catch (err) {
+  if (err instanceof PayoutRulesRequiredError) {
+    // create a rule before running again
+  } else throw err;
+}
+```
+
+Branch on `outcome` (`"payouts_created"` | `"no_eligible_activity"`), never on a
+count and never on prose — there is no `warnings[]` by design. `underfunded` is
+structurally `0`: payout compute records obligations and never draws down a
+budget. The count that actually blocks money leaving is `awaitingAccount`.
+
+:::caution[`outcome` and `summary` count different things]
+`outcome`, `payoutsCreated` and `awaitingAccount` describe **this run**.
+`summary` describes **the period's ledger**, including rows earlier runs
+created — so a re-run can report `no_eligible_activity` beside a non-zero
+`summary.count`. Use `payoutsCreated` for "did this run do anything".
+:::
 
 :::note[`run` never mutates a batched row]
 Once a payout row has been pulled into a live batch, recomputation leaves it
 alone. That is what makes it safe to re-run a period after you have already
-exported part of it.
+exported part of it — a late conversion adds new rows without rewriting history.
 :::
 
 ## exportCsv
 
+Build **and** export in one call on the `csv_batch` rail — the commonest
+operator intent, kept as one round trip. Answers **202**.
+
 ```js
-const batch = await boomin.payouts.exportCsv({
-  period_start: "2026-08-01",   // optional
-  period_end: "2026-09-01",     // optional
+const accepted = await boomin.payouts.exportCsv({
+  periodStart: "2026-08-01",   // optional
+  periodEnd: "2026-09-01",     // optional
 });
 ```
 
 ```json
 {
-  "id": "pob_...",
-  "object": "payout_batch",
-  "status": "…",
+  "batch": "pob_...",
+  "status": "exporting",
+  "operation": "op_...",
   "items": [ … ],
-  "skipped": [ … ],
-  "export_file_key": "…",
-  "download_url": "https://…"
+  "skipped": 0
 }
 ```
 
-One call, two steps: it builds a `csv_batch` over the eligible rows, then
-exports it and returns the download URL. Answers **201**.
+`batch` and `operation` are **id strings** — the same 202 contract
+[`batches.export`](/sdk/resources/payout-batches/#export) answers. There is one
+export contract, not two.
 
-`skipped` names rows that were *not* included and why — read it. The usual
-reasons are a row already living in another live batch, or a recipient with no
-usable payout destination.
+The build half runs synchronously inside the call, so the two failures you can
+actually fix come back immediately and typed rather than being discovered by
+polling an operation that fails:
+
+| Throws | When |
+| --- | --- |
+| `PayoutRailRequiredError` | No active `csv_batch` rail. Nothing is auto-provisioned — [why](/payouts/#1-no-rail-is-auto-created). |
+| `PayoutBatchEmptyError` | No settle-able row for this rail and period. |
+
+`skipped` is a **count** of otherwise-eligible rows dropped for want of a
+recipient email. They stay eligible for a later batch.
+
+### The download URL is not here
+
+```js
+await boomin.operations.wait(accepted.operation, { timeout: 120000 });
+const batch = await boomin.payouts.batches.retrieve(accepted.batch);
+console.log(batch.downloadUrl);
+```
+
+The presigned URL is minted on **read** of the batch, not returned by the
+mutation. One handed back here would already be expiring by the time an operator
+opened it, and could not be re-obtained without re-exporting.
 
 Omit both period fields to sweep every eligible row regardless of period.
-
-### Eligibility
-
-A payout row is eligible for a batch when its `status` is `pending` or
-`awaiting_account` **and** it is not brand-bridged. Rows destined for another
-brand's wallet settle on the wallet rail instead — never both.
-
-The `csv_batch` rail is the zero-onboarding disbursement path: you get an
-operator CSV (PayPal or Wise column maps are configurable per brand), pay it out
-of band, and confirm. The confirm and money-move steps are finance-gated and
-live in the app, not on this client.
 
 ## list
 
@@ -92,29 +165,23 @@ live in the app, not on this client.
 | --- | --- |
 | `status` | `pending` `awaiting_account` `processing` `paid` `failed` |
 | `periodStart` / `periodEnd` | `YYYY-MM-DD` exact match |
+| `partner` | A `ptnr_...` id — one recipient's ledger |
 | `limit` | 1–100, default 20 |
 | `startingAfter` | A `po_...` cursor |
 
 ```js
 for await (const payout of boomin.payouts.list({ status: "awaiting_account" })) {
-  console.log(payout.id, payout.amount_cents, payout.period_start);
+  console.log(payout.id, payout.amountCents, payout.periodStart);
 }
 ```
 
 `awaiting_account` is the interesting bucket: money is owed, but the recipient
-has no payout destination yet.
+has no usable payout destination. Because partner Connect onboarding is not yet
+available, it is also the **normal** status — and `csv_batch` batches those rows
+anyway.
 
-## batches
-
-```js
-const { data } = await boomin.payouts.batches.list();
-const batch = await boomin.payouts.batches.retrieve("pob_...");
-console.log(batch.items);
-```
-
-`batches.retrieve` returns the bare batch **plus** its `items` alongside.
-`batches.list` returns every batch for the brand in one envelope — it does not
-paginate, so `has_more` is always `false`.
+Filtering by `partner` also excludes every user-recipient row, since a payout
+row has exactly one recipient (user XOR partner).
 
 ## connectStatus
 
@@ -125,23 +192,34 @@ const status = await boomin.payouts.connectStatus();
 ```json
 {
   "object": "payouts.connect_status",
-  "rails": [ { "rail": "csv_batch", ... } ],
+  "rails": [
+    { "id": "prail_...", "object": "payout_rail", "rail": "csv_batch", "status": "active", "is_default": true }
+  ],
   "stripe": {
     "configured": true,
     "partner_accounts": 42,
-    "partner_accounts_payouts_enabled": 37
+    "partner_accounts_payouts_enabled": 0
   }
 }
 ```
 
-The disbursement-readiness read: which rails this brand has configured, and how
-many of its partners have a Stripe Connect payout account that can actually
-receive money. Check it before a run rather than discovering the gap in
-`skipped`.
+The disbursement-readiness read. Check it before a run rather than discovering
+the gap after building a batch.
+
+Rail entries carry identity and state **only, never `config`** — this is a
+`payouts:read` surface, and a column mapping decides where money lands. Read
+config from [`payouts.rails.list()`](/sdk/resources/payout-rails/), which needs
+`payout_rails:read`.
+
+:::caution[`partnerAccountsPayoutsEnabled` will read 0]
+Partner disbursement over Stripe Connect needs a transfers-only Express
+capability that is not yet approved on Boomin's platform account, so partners
+have no onboarding path to finish. `stripe.configured` reports whether a Stripe
+key is present, not whether anyone can be paid through it. There is no
+`disburse` route on the Platform API. Use the `csv_batch` rail.
+:::
 
 ## From the CLI
-
-The same flow, straight to a file:
 
 ```bash
 npx @boomin/cli payout run --period-start 2026-08-01 --period-end 2026-09-01
@@ -149,3 +227,7 @@ npx @boomin/cli payout export --period-start 2026-08-01 --period-end 2026-09-01 
 npx @boomin/cli payout list --status awaiting_account
 npx @boomin/cli payout connect
 ```
+
+`payout export` polls the operation to terminal, reads the batch, and downloads
+the CSV to `--out`. An operation that ends anything but `succeeded` exits
+non-zero rather than leaving an empty file behind.
