@@ -37,6 +37,13 @@ import {
   BandLimitReachedError,
   FundingRequiredError,
   WebhookSignatureVerificationError,
+  ImmutableParameterError,
+  ConflictingParametersError,
+  PayoutRulesRequiredError,
+  PayoutRailRequiredError,
+  PayoutRailAlreadyExistsError,
+  PayoutBatchEmptyError,
+  PayoutBatchStateError,
 } from "@boomin/sdk";
 ```
 
@@ -156,6 +163,23 @@ it returns the existing control operation rather than erroring.
 | `performance_event_identity_required` | 422 | Neither `idempotency_key` nor `external_event_id` was supplied. | Always send one; it is what makes ingestion exactly-once. |
 | `deployment_distribution_mismatch` | 409 | The deployment/distribution pair does not agree. | Send only `deployment` and let the API resolve the distribution. |
 
+### Payout configuration
+
+| Code | HTTP | What it means | Recover by |
+| --- | --- | --- | --- |
+| `payout_rules_required` | 409 | `payouts.run` on a brand with no active payout rule **and** no active content split. Nothing could have paid anyone. → `PayoutRulesRequiredError` | Create a rule: [`payouts.rules`](/sdk/resources/payout-rules/). |
+| `payout_rail_required` | 409 | No active rail of the requested kind, or no usable default. Nothing is auto-provisioned. → `PayoutRailRequiredError` | Configure one: [`payouts.rails`](/sdk/resources/payout-rails/). |
+| `payout_rail_already_exists` | 409 | `rails.create` for a kind already configured — create is not an upsert. → `PayoutRailAlreadyExistsError` | Call `rails.update` explicitly. |
+| `immutable_parameter` | 400 | A rule's economics are frozen after creation. `param` names the frozen **concept**, not the key you sent. → `ImmutableParameterError` | Create a replacement rule, activate it, archive the old one. |
+| `payout_batch_empty` | 409 | No settle-able payout row for this rail and period. → `PayoutBatchEmptyError` | Run the period first, or widen the window. |
+| `payout_batch_conflict` | 409 | A concurrent build raced this one. → `PayoutBatchStateError` | Retry, or read the batch that won. |
+| `payout_batch_not_exportable` / `_not_confirmable` / `_not_cancelable` | 409 | The batch's status refuses the verb. → `PayoutBatchStateError` | Retrieve the batch and read `status`. |
+| `payout_rule_not_found` / `payout_rail_not_found` | 404 | Unknown, malformed, or another tenant's id. | Check the id. |
+| `payout_export_format_invalid` | 400 | The rail's `config.format` is not a known export format. | Use `paypal_payouts_csv` or `wise_batch_csv`. |
+| `payout_export_unconfigured` | 400 | The export has no usable destination configuration. The CLI raises the same code when a batch exported but no presigned URL came back, so `--out` cannot be written. | The file exists but was not delivered — check the rail config and storage credentials. |
+
+Full context on each: [Getting partners paid](/payouts/).
+
 ### Billing
 
 | Code | HTTP | What it means | Recover by |
@@ -181,3 +205,4 @@ Raised by the client, never by the API:
 | `request_timeout` | The HTTP request exceeded `timeout`. |
 | `connection_error` | The request never reached the API. |
 | `internal_error` | The API returned an unparseable body. |
+| `conflicting_parameters` | A camelCase key and its snake_case twin both appeared in one body, query, or response. → `ConflictingParametersError`. Send one spelling. |

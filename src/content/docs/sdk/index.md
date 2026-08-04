@@ -96,10 +96,38 @@ for await (const enrollment of boomin.enrollments.list({ program: "prog_123" }))
 `limit` must be between 1 and 100 (default 20). Camel-cased query params are
 converted to the wire's snake_case (`startingAfter` → `starting_after`).
 
-:::caution
-Query parameters are camel→snake converted. **Request bodies are not.** Send
-body fields exactly as the API names them: `enabled_events`, `value_minor`,
-`period_start`, `referral_code`.
+## Casing
+
+Since `1.0.0-beta.2` the SDK speaks **camelCase in both directions**. Request
+bodies and query params are converted to the wire's snake_case on the way out
+(`periodStart` → `period_start`), and responses are converted to camelCase on
+the way back (`download_url` → `downloadUrl`).
+
+```js
+const accepted = await boomin.payouts.exportCsv({ periodStart, periodEnd });
+const batch = await boomin.payouts.batches.retrieve(accepted.batch);
+console.log(batch.downloadUrl, batch.itemCount);
+```
+
+Already-snake_case keys you send are passed through untouched, so
+`{ period_start }` still works. Sending **both** spellings of one field throws
+`ConflictingParametersError` rather than picking a winner.
+
+:::caution[Customer-owned data is never renamed]
+Fields whose contents you control are passed through verbatim in both
+directions, at every depth: a distribution's `spec` and `stats`, a deployment's
+`desired_state` / `observed_state` / `external_ids`, `metadata`, `permissions`,
+a performance event's `properties`, and a payout rail's `config.columns`.
+
+So `properties.orderId` reads back as `properties.orderId`, and a CSV column
+header stays byte-identical — see
+[`config.columns` is your data](/payouts/#4-configcolumns-is-your-data).
+:::
+
+:::note[Some pages still read responses in snake_case]
+Docs written before `1.0.0-beta.2` show `deployment.deployment_key` and the
+like. The payout pages are current; elsewhere, prefer the camelCase spelling if
+a field reads back `undefined`.
 :::
 
 ## Ids
@@ -119,6 +147,7 @@ Ids are returned with a type prefix and accepted with or without it:
 | `evt_` | event |
 | `perf_` | performance event |
 | `po_` / `pob_` | payout / payout batch |
+| `prule_` / `prail_` | payout rule / payout rail |
 | `we_` | webhook endpoint |
 
 Passing a *wrong* prefix for the resource returns that resource's typed 404 —
@@ -134,11 +163,15 @@ Success responses are Stripe-style **bare objects** — the resource itself, not
   the bare resource **plus** an `operation` id alongside.
 - `webhooks.endpoints.create/retrieve/update/rotateSecret` → wrapped as
   `{ webhook_endpoint: { ... } }`.
+- `payouts.exportCsv` and `payouts.batches.export` →
+  `{ batch, status: "exporting", operation }`, all **id strings**;
+  `payouts.batches.confirm` → the same with `status: "confirming"`.
 
 A handful of reads return the bare resource plus a companion field:
 `distributions.validate` adds `valid` and `errors`;
 `partnerships.retrieve` adds `enrollments`;
-`payouts.batches.retrieve` adds `items`;
+`payouts.batches.retrieve` adds `items` and `download_url`;
+`payouts.batches.create` adds `items` and `skipped`;
 `performance.events.create` adds `duplicate` and `projected`.
 
 Lists are always `{ object: "list", data: [...], has_more: boolean }`.
@@ -163,7 +196,10 @@ Every non-2xx raises a subclass of `BoominError` carrying `code`, `status`,
 | [`events`](/sdk/resources/events/) | `list` |
 | [`operations`](/sdk/resources/operations/) | `retrieve` `list` `wait` |
 | [`webhooks`](/sdk/resources/webhooks/) | `endpoints.create/retrieve/update/list/del/rotateSecret` + `constructEvent` |
-| [`payouts`](/sdk/resources/payouts/) | `list` `run` `exportCsv` `connectStatus` + `batches.list/retrieve` |
+| [`payouts`](/sdk/resources/payouts/) | `list` `run` `exportCsv` `connectStatus` |
+| [`payouts.rules`](/sdk/resources/payout-rules/) | `create` `retrieve` `list` `update` `archive` — no `del()` |
+| [`payouts.rails`](/sdk/resources/payout-rails/) | `create` `retrieve` `list` `update` |
+| [`payouts.batches`](/sdk/resources/payout-batches/) | `create` `retrieve` `list` `export` `confirm` `cancel` |
 
 `resume` is the canonical verb on every surface — never `unpause`.
 

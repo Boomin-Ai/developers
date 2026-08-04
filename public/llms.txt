@@ -51,7 +51,7 @@ import Boomin from "@boomin/sdk";
 const boomin = new Boomin(process.env.BOOMIN_SECRET_KEY);
 ```
 
-Twelve resource clients:
+Twelve resource clients (`payouts` carries three nested ones):
 - `programs` — retrieve, list + nested `requirements`, `tiers`, `connectConfig`, `handoffConfig`
 - `partners` — retrieve, list (NOTE: no `/v1/platform/partners` routes in this release; read partner identity off `partnerships`)
 - `partnerships` — list, retrieve, pause, resume, end, updatePermissions
@@ -63,7 +63,10 @@ Twelve resource clients:
 - `events` — list (the operational domain-event feed OUT)
 - `operations` — retrieve, list, wait
 - `webhooks` — `endpoints.create/retrieve/update/list/del/rotateSecret` + `constructEvent`
-- `payouts` — list, run, exportCsv, connectStatus + `batches.list/retrieve`
+- `payouts` — list, run, exportCsv, connectStatus
+- `payouts.rules` — create, retrieve, list, update, archive (NO del: ledger rows reference rules)
+- `payouts.rails` — create, retrieve, list, update
+- `payouts.batches` — create, retrieve, list, export, confirm, cancel
 
 `resume` is the canonical verb on every surface — never `unpause`.
 `programs.create` and `programs.update` exist on the client but have no route in this release; create programs from the CLI or the app.
@@ -72,7 +75,7 @@ Twelve resource clients:
 
 1. `npx @boomin/cli login`
 2. `npx @boomin/cli init --program-name "Launch Partners" --yes`
-3. `npx @boomin/cli token create --name "Server" --scopes org:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write --save`
+3. `npx @boomin/cli token create --name "Server" --scopes org:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write,payout_rules:read,payout_rules:write,payout_rails:read,payout_rails:write --save`
 4. `npm install @boomin/sdk`
 5. `boomin.enrollments.create({ program, email })` then `boomin.enrollments.approve(id)`
 6. `boomin.distributions.create({ name, objective, programs, budget: { mode: "funded", asset: "credit", total: 50000 } })`
@@ -81,7 +84,12 @@ Twelve resource clients:
 9. `boomin.operations.wait(accepted.operation, { timeout: 120000 })`
 10. `boomin.performance.events.create({ deployment, type, value_minor, idempotency_key })`
 11. `boomin.webhooks.endpoints.create({ url, enabled_events })` — signing secret shown ONCE
-12. `boomin.payouts.run({ period_start, period_end })` then `boomin.payouts.exportCsv({ period_start, period_end })`
+12. `boomin.payouts.rails.create({ rail: "csv_batch", config: { format: "paypal_payouts_csv", columns: [...] }, isDefault: true })` — DO THIS FIRST, nothing is auto-created
+13. `boomin.payouts.rules.create({ name, type: "revenue_split", scope: { type: "program", program }, rateBps: 2000 })`
+14. `boomin.payouts.run({ periodStart, periodEnd })` -> branch on `outcome`
+15. `boomin.payouts.exportCsv({ periodStart, periodEnd })` -> 202 `{batch, status, operation}`
+16. `boomin.operations.wait(accepted.operation)` then `boomin.payouts.batches.retrieve(accepted.batch).downloadUrl`
+17. `boomin.payouts.batches.confirm(batch, { externalBatchRef })` after paying it out of band
 
 ## Key facts that trip people up
 
@@ -98,7 +106,18 @@ Twelve resource clients:
 - Pausing does NOT dodge billing — links keep resolving. `partnership.end` or enrollment archive is the billing exit.
 - A funded launch that outruns the wallet parks the operation at `status:"waiting"`, `waiting_reason:"funding_required"`. Relaunching REUSES that waiting operation.
 - One live mutation per subject: a second launch/resume raises `operation_conflict` (409). Cancel runs on a separate control plane, so it can cancel a running launch.
-- Query params are camel->snake converted by the SDK (`startingAfter` -> `starting_after`). REQUEST BODIES ARE NOT — send `enabled_events`, `value_minor`, `period_start`, `referral_code`.
+- SDK 1.0.0-beta.2 speaks camelCase in BOTH directions: request bodies and query params convert to snake_case going out, responses convert to camelCase coming back (`download_url` -> `downloadUrl`). Already-snake keys you send pass through untouched. Sending both spellings of one field throws `conflicting_parameters`.
+- Customer-owned blobs are NEVER renamed at any depth: `spec`, `stats`, `desired_state`, `observed_state`, `external_ids`, `metadata`, `permissions`, `properties`, and a payout rail's `config.columns`.
+- PAYOUTS: no rail is auto-created — exporting without one is typed `payout_rail_required` (409). A CSV format is not neutral (PayPal != Wise) and the column mapping decides what a bank reads.
+- PAYOUTS: a rule's economics are IMMUTABLE after creation. Only `name` and `status` change; anything else answers `immutable_parameter` (400) naming the frozen CONCEPT. The payouts ledger references the rule, so editing a rate would re-interpret settled history. To change money: create a replacement rule, activate it, archive the old one.
+- PAYOUTS: rules are ARCHIVED, never deleted — `POST /payouts/rules/{id}/archive`, `payouts.rules.archive(id)`. No DELETE exists because `payouts.rule_id` cascades and would take ledger rows with it.
+- PAYOUTS: money on the wire is `per_unit_minor` / `bonus_minor` (minor units of the rule's own `currency`), never `*_cents`. `rate_bps` is basis points; 2000 = 20.00%.
+- PAYOUTS: `payouts.run` has TWO outcomes. No active rule AND no active content split -> typed `payout_rules_required` 409 (a configuration error that must fail a scheduled job). Rules ran but nothing qualified -> SUCCESS with `outcome: "no_eligible_activity"` plus counters. Branch on `outcome`, never on a count. Note `outcome`/`payouts_created` describe THIS RUN while `summary` describes the whole period's ledger.
+- PAYOUTS: `exportCsv` and `batches.export` answer 202 with `{batch, status, operation}` as id STRINGS. `download_url` is NOT in that response — it is minted on reading `GET /payouts/batches/{id}`, so it can be re-obtained instead of expiring.
+- PAYOUTS: `skipped` on a build is a COUNT of eligible rows dropped for want of a recipient handle, not a list. All rows skipped -> `payout_batch_empty` (409).
+- PAYOUTS: rail `config.columns` is YOUR data — headers and array order survive the SDK boundary byte-for-byte, while `walletFunded` -> `wallet_funded` converts around them.
+- PAYOUTS: the `stripe_connect` rail is configurable but CANNOT PAY ANYONE — the transfers-only Express capability is not approved, partners have no onboarding path, and there is deliberately no `disburse` route. Use `csv_batch`.
+- PAYOUTS: `awaiting_account` is the NORMAL payout status for the same reason, and `csv_batch` batches those rows anyway.
 - `events.list` pages FORWARD by ascending `seq`. Every other list pages backward by creation time.
 
 ## Providers
@@ -111,7 +130,7 @@ Exactly one adapter is registered today: the Boomin partnership adapter, support
 
 - Browser SDK: `@boomin/connect` — Partner Connect (OTP join, Instagram connect, approval status). Uses public `pk_live_...` keys.
 - Signed Handoff (`@boomin/server`, maintenance only) lets already-logged-in app users join without a second OTP.
-- CLI: `@boomin/cli` 0.3.0. Setup: `login`, `init`, `doctor`, `status`, `logout`, `scopes`, `token`, `platform smoke`, `referral init`, `handoff init|provision`, `mcp install`, `skill install`. Platform v1 groups: `distribution`, `enrollment`, `partnership`, `connection`, `payout`, `webhook`, `events`. Operation-returning commands poll to terminal by default; `--no-wait` skips.
+- CLI: `@boomin/cli` 0.4.0. Setup: `login`, `init`, `doctor`, `status`, `logout`, `scopes`, `token`, `platform smoke`, `referral init`, `handoff init|provision`, `mcp install`, `skill install`. Platform v1 groups: `distribution`, `enrollment`, `partnership`, `connection`, `payout` (with sub-groups `rules`, `rails`, `batches`), `webhook`, `events`. Operation-returning commands poll to terminal by default; `--no-wait` skips.
 - MCP hosted install: `npx @boomin/cli@latest mcp install` or `claude mcp add --transport http boomin https://mcp.boomin.ai/mcp`
 - Partner Connect API: https://api.boomin.ai/v1/connect
 - Public Discover feed (unauthenticated, listed programs only): GET https://api.boomin.ai/v1/connect/discover
@@ -147,7 +166,11 @@ Billed on monthly ACTIVE partners: approved AND at least one tracked event that 
 - Deployments: https://developers.boomin.ai/distributions/deployments/
 - Budgets: https://developers.boomin.ai/distributions/budgets/
 - Performance: https://developers.boomin.ai/distributions/performance/
-- Payouts: https://developers.boomin.ai/distributions/payouts/
+- Payouts — the payout ledger: https://developers.boomin.ai/distributions/payouts/
+- Getting partners paid (the money model): https://developers.boomin.ai/payouts/
+- SDK payouts.rules: https://developers.boomin.ai/sdk/resources/payout-rules/
+- SDK payouts.rails: https://developers.boomin.ai/sdk/resources/payout-rails/
+- SDK payouts.batches: https://developers.boomin.ai/sdk/resources/payout-batches/
 - CLI guide: https://developers.boomin.ai/cli/
 - CLI command reference: https://developers.boomin.ai/cli/reference/
 - Platform API v1: https://developers.boomin.ai/platform-api/

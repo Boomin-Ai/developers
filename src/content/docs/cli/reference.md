@@ -1,9 +1,9 @@
 ---
 title: Command Reference
-description: Every group and subcommand in @boomin/cli 0.3.0.
+description: Every group and subcommand in @boomin/cli 0.4.0.
 ---
 
-`@boomin/cli` **0.3.0**. Every command supports `-h` / `--help`, and most support
+`@boomin/cli` **0.4.0**. Every command supports `-h` / `--help`, and most support
 `--json` for machine-readable output.
 
 ```bash
@@ -114,14 +114,16 @@ smoke objects with `--cleanup`, and revokes the temporary token.
 ## Platform v1 groups
 
 Seven groups over the live `/v1/platform` tree: `distribution`, `enrollment`,
-`partnership`, `connection`, `payout`, `webhook`, `events`.
+`partnership`, `connection`, `payout`, `webhook`, `events`. `payout` has three
+sub-groups of its own — `rules`, `rails`, `batches` — mirroring
+`/payouts/{rules,rails,batches}`.
 
 Operation-returning commands poll the operation to a terminal status by
 **default**; `--no-wait` returns the 202 immediately.
 
 | Flag | Default | Applies to |
 | --- | --- | --- |
-| `--no-wait` | off | `distribution launch\|pause\|resume\|cancel` |
+| `--no-wait` | off | `distribution launch\|pause\|resume\|cancel`, `payout export`, `payout batches export\|confirm` |
 | `--timeout <seconds>` | `120` | Operation wait budget |
 | `--poll-interval <secs>` | `2` | Poll interval |
 | `--limit <n>` | 20 | Any `list` |
@@ -202,17 +204,151 @@ Needs `connections:read` / `connections:write`.
 
 ### payout
 
+The money-out group. Three sub-groups mirror the REST tree —
+`payout rules`, `payout rails`, `payout batches` — plus the ledger verbs:
+
 ```bash
 npx @boomin/cli payout list [--status pending|awaiting_account|processing|paid|failed] \
   [--period-start YYYY-MM-DD --period-end YYYY-MM-DD]
 npx @boomin/cli payout run --period-start YYYY-MM-DD --period-end YYYY-MM-DD
-npx @boomin/cli payout export [--out payouts.csv] [--period-start YYYY-MM-DD --period-end YYYY-MM-DD]
+npx @boomin/cli payout export [--out payouts.csv] [--period-start YYYY-MM-DD --period-end YYYY-MM-DD] [--no-wait]
 npx @boomin/cli payout connect
 ```
 
-`payout export --out <file>` downloads the generated CSV to that path. `payout
-connect` prints configured rails plus the Stripe Connect account rollup. Needs
-`payouts:read` / `payouts:write`.
+`payout run` **exits non-zero** when the brand has no active payout rule and no
+active content split (`payout_rules_required`) — a configuration error must fail
+a scheduled job rather than look like a month with nothing owed. A run that
+found nothing exits zero and prints `no_eligible_activity` plus the counters.
+
+`payout export` is build **and** export in one call. The export is an operation,
+so the command polls it to terminal, reads the batch for its re-minted
+`download_url`, and writes `--out`. A failed operation exits non-zero rather
+than leaving an empty path behind.
+
+`payout connect` prints configured rails plus the Stripe Connect account
+rollup — identity and state only, never rail `config`.
+
+Needs `payouts:read` / `payouts:write`. Concepts: [Getting partners
+paid](/payouts/).
+
+### payout rules
+
+How a partner **earns**. Needs `payout_rules:read` / `payout_rules:write`.
+
+```bash
+npx @boomin/cli payout rules list [--program prog_...] [--status active|paused|archived] \
+  [--type revenue_split|cpa|threshold_bonus]
+npx @boomin/cli payout rules create --name "Rev share" --type revenue_split --program prog_... --rate-bps 2000
+npx @boomin/cli payout rules show <prule_id>
+npx @boomin/cli payout rules update <prule_id> [--name "..."] [--status active|paused|archived]
+npx @boomin/cli payout rules archive <prule_id>
+```
+
+Create flags:
+
+| Flag | Meaning |
+| --- | --- |
+| `--name <text>` | **Required**, 1–200 chars |
+| `--type <type>` | **Required**: `revenue_split` \| `cpa` \| `threshold_bonus` |
+| `--program <prog_id>` | **Required on every scope**, including `member` |
+| `--scope-type <type>` | `program` (default) \| `collection` \| `unit` \| `member` |
+| `--collection` / `--unit` / `--member` | The scope target; also infers `--scope-type` |
+| `--scope <json>` | The whole scope object, instead of the flags above |
+| `--rate-bps <n>` | Required for `revenue_split`. 0–10000; `2000` = 20.00% |
+| `--metric-key <key>` | Required for `cpa` and `threshold_bonus` |
+| `--per-unit-minor <n>` | Required for `cpa`. Minor units — there is no `--*-cents` |
+| `--threshold <n>` / `--bonus-minor <n>` | Required for `threshold_bonus` |
+| `--window-key <text>` / `--window-days <n>` | Optional window for `threshold_bonus` |
+| `--currency <iso>` | 3 letters, default `usd` |
+
+```bash
+npx @boomin/cli payout rules create --name "Registration CPA" --type cpa \
+  --program prog_... --metric-key event_registration --per-unit-minor 500
+
+npx @boomin/cli payout rules create --name "100 referrals" --type threshold_bonus \
+  --program prog_... --metric-key referral_count --threshold 100 --bonus-minor 25000 --window-days 90
+```
+
+`update` takes `--name` and `--status` **only** — a rule's economics freeze at
+creation. Sending anything else answers `immutable_parameter` naming the frozen
+concept. To change money: create a replacement rule, then archive the old one.
+
+`archive` is the removal verb; there is no delete, because ledger rows reference
+rules. [Why](/payouts/#3-rules-are-archived-never-deleted)
+
+### payout rails
+
+How money physically **leaves**. Needs `payout_rails:read` /
+`payout_rails:write` — a separate grant from `payouts:write`, because a column
+mapping decides where money lands.
+
+```bash
+npx @boomin/cli payout rails list
+npx @boomin/cli payout rails create --rail csv_batch --format paypal_payouts_csv [--default] \
+  [--wallet-funded] [--columns '[{"key":"email","header":"Email Address"}]']
+npx @boomin/cli payout rails show <prail_id>
+npx @boomin/cli payout rails update <prail_id> [--config '{...}'] [--status active|disabled] [--default]
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--rail <kind>` | **Required**: `csv_batch` \| `stripe_connect` |
+| `--format <fmt>` | **Required for `csv_batch`**: `paypal_payouts_csv` \| `wise_batch_csv` |
+| `--columns <json>` | Your column mapping, passed to the API untouched |
+| `--wallet-funded` | Bare boolean. Settlement debits the brand wallet per item |
+| `--default` | Bare boolean. Claims the brand's one default rail |
+| `--config <json>` | The whole config object, instead of the three flags above |
+| `--status <s>` | `active` \| `disabled` |
+
+`--wallet-funded` and `--default` are bare flags; `--default=false` also works.
+
+```bash
+npx @boomin/cli payout rails create --rail csv_batch --format wise_batch_csv --default \
+  --columns '[{"key":"email","header":"Email Address"},{"key":"amount","header":"payoutAmount"},{"key":"currency","header":"Currency_Code"},{"key":"reference","header":"REF"}]'
+```
+
+Those headers reach the rendered file byte-for-byte —
+`payoutAmount` is **not** re-cased on its way through the CLI or the SDK.
+[Why](/payouts/#4-configcolumns-is-your-data)
+
+`create` is not an upsert: a second create for a configured rail answers
+`payout_rail_already_exists` (409) and you must say `update` out loud. On
+`update`, `--config` **replaces** the stored object wholesale; omit the config
+flags to leave it alone.
+
+### payout batches
+
+One frozen disbursement run. Needs `payouts:read` / `payouts:write`.
+
+```bash
+npx @boomin/cli payout batches list
+npx @boomin/cli payout batches show <pob_id>
+npx @boomin/cli payout batches create [--rail csv_batch] [--period-start YYYY-MM-DD --period-end YYYY-MM-DD]
+npx @boomin/cli payout batches export <pob_id> [--out payouts.csv] [--no-wait]
+npx @boomin/cli payout batches confirm <pob_id> [--external-batch-ref PAYPAL-2026-08] \
+  [--results '[{"item":"<uuid>","status":"paid"}]'] [--no-wait]
+npx @boomin/cli payout batches cancel <pob_id>
+```
+
+The full lifecycle, end to end:
+
+```bash
+npx @boomin/cli payout batches create --period-start 2026-08-01 --period-end 2026-09-01
+npx @boomin/cli payout batches export pob_... --out payouts.csv
+# pay it out of band, then:
+npx @boomin/cli payout batches confirm pob_... --external-batch-ref PAYPAL-2026-08
+```
+
+`export` and `confirm` are operations and poll to terminal by default;
+`--no-wait` prints the 202 and the operation id instead.
+
+`--results` names batch **item** ids — bare uuids from `payout batches show
+<pob_id> --json`, not prefixed ids. Per-item `status` is `paid`, `failed`, or
+`returned`, with an optional `reason`. Omit `--results` and every item settles
+as `paid`.
+
+Repeating a confirm with the same `--external-batch-ref` replays one operation,
+so a retry after a timeout cannot settle twice.
 
 ### webhook
 
