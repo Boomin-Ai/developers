@@ -6,6 +6,11 @@ description: Manage delivery endpoints, subscriptions, and signing-secret rotati
 This page is about **managing** endpoints. For verifying and handling
 deliveries, see [Receiving webhooks](/sdk/webhooks/).
 
+Delivery is **at-least-once**: an endpoint you create here can receive the same
+event more than once, and your handler must dedupe on `event.id`. The
+[at-least-once contract](/sdk/webhooks/#delivery-is-at-least-once) explains why
+and shows the pattern.
+
 ```js
 const { webhook_endpoint } = await boomin.webhooks.endpoints.create({
   url: "https://your-app.com/webhooks/boomin",
