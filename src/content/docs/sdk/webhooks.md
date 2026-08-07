@@ -124,10 +124,46 @@ candidate against every provided signature in constant time.
 Rotating **again inside the window** replaces the previous secret — only the
 most recent old secret is honored. Do not chain two rotations inside 24 hours.
 
-## Delivery, retries, and backoff
+## Delivery is at-least-once
+
+**Boomin guarantees at-least-once delivery, never exactly-once.** The same event
+can arrive at your endpoint more than once, and your handler must be built for
+that. This is a property of the network, not a limitation we intend to remove:
+
+- You return `2xx` and the response is lost on the way back. To us the attempt
+  failed, so we retry — you have now processed the event twice.
+- We time out at 10 seconds while your handler goes on to finish the work
+  successfully. Same outcome.
+- A delivery worker stalls after sending. Its claim on the delivery expires,
+  another worker picks the delivery up, and sends again.
+
+Internally each attempt holds a fenced claim on its delivery row, so two workers
+never send *concurrently* and a stalled worker can never overwrite a newer
+attempt's outcome. That bounds what our database accepts. It cannot bound what
+your server already received — no server-side mechanism can — so the contract we
+publish is the one we can actually keep.
+
+**`event.id` is stable across every attempt of the same event.** Dedupe on it:
+
+```js
+const event = await constructEvent(payload, sigHeader, secret);
+
+// Insert-if-absent on a unique event id — the whole pattern.
+const isNew = await db.insertWebhookEvent({ id: event.id, seq: event.seq });
+if (!isNew) return res.status(200).end();   // already handled; ack and stop
+
+await handle(event);
+res.status(200).end();
+```
+
+Anything you do in `handle` that is not itself idempotent — sending an email,
+charging a card, incrementing a counter — belongs behind that check.
+
+## Retries and backoff
 
 | Property | Value |
 | --- | --- |
+| Delivery guarantee | **At-least-once** — dedupe on `event.id` |
 | Attempts | **6** total — 1 initial + 5 retries |
 | Backoff after failure *n* | 30s → 2m → 8m → 30m → 30m |
 | Per-attempt timeout | 10 seconds |
@@ -135,15 +171,16 @@ most recent old secret is honored. Do not chain two rotations inside 24 hours.
 | Ordering | Deliveries are fanned out per event `seq`; retries mean order is **not** guaranteed |
 
 Retries come from Boomin's own scheduler, not from queue redelivery, and each
-attempt is leased so a concurrent sweeper cannot double-send. After the sixth
-failed attempt the delivery is terminal.
+attempt holds a claim on the delivery so a concurrent sweeper cannot double-send.
+After the sixth failed attempt the delivery is terminal — a terminal delivery is
+never re-sent, and never re-opened.
 
 Practical consequences:
 
 - **Answer 2xx fast.** A 10-second timeout counts as a failure. Acknowledge
   first, process asynchronously.
-- **Be idempotent.** Use `event.id` (or `event.seq`) as a dedupe key. A 2xx that
-  Boomin never sees will be retried.
+- **Be idempotent.** Use `event.id` as a dedupe key. A 2xx that Boomin never sees
+  will be retried.
 - **Do not depend on order.** Use `event.seq` — a monotonically increasing
   cursor — to order or to reconcile.
 
