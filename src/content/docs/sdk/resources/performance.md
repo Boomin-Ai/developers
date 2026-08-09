@@ -11,9 +11,9 @@ numbers come **out** with `performance.summary()`.
 await boomin.performance.events.create({
   deployment: "dep_...",
   type: "purchase",
-  value_minor: 4999,
+  valueMinor: 4999,
   currency: "usd",
-  idempotency_key: "order_1001",
+  externalEventId: "order_1001",
 });
 
 const summary = await boomin.performance.summary({ distribution: "dist_..." });
@@ -36,29 +36,37 @@ const summary = await boomin.performance.summary({ distribution: "dist_..." });
 ```js
 const result = await boomin.performance.events.create({
   deployment: "dep_...",            // required
+  enrollment: "enr_...",            // optional — WHICH PARTNER earned it
   type: "purchase",                 // required, ≤ 64 chars — your vocabulary
   source: "checkout",               // optional, ≤ 64 chars, default "platform_api"
-  occurred_at: "2026-08-01T12:00:00Z", // optional ISO-8601 with offset; default now
-  value_minor: 4999,                // optional integer
+  occurredAt: "2026-08-01T12:00:00Z", // optional ISO-8601 with offset; default now
+  valueMinor: 4999,                 // optional integer
   currency: "usd",                  // optional 3-letter code
   quantity: 1,                      // optional positive integer
-  idempotency_key: "order_1001",    // 8–200 chars
-  external_event_id: "evt_shopify_1001", // ≤ 200 chars
-  properties: { order_id: "1001" }, // optional free-form object
+  idempotencyKey: "order_1001",     // 8–200 chars
+  externalEventId: "evt_shopify_1001", // ≤ 200 chars
+  properties: { order_id: "1001" }, // optional free-form object — keys pass through verbatim
 });
 ```
 
-Everything hangs off `deployment`. You never send a partner, an enrollment, or a
-program — that context is derived through the deployment, which is what keeps it
-from drifting.
+Raw HTTP bodies use the snake_case spellings (`value_minor`,
+`external_event_id`); the SDK converts.
 
-:::danger[One of `idempotency_key` or `external_event_id` is required]
+`deployment` names the channel — from it Boomin derives the distribution and
+the program. **Which partner earned the event is the event's own `enrollment`
+field**: the `?ref=` link paths stamp it themselves, and a first-party
+integration recording its own conversions passes it explicitly. Omit it for
+genuinely unattributed measurement (owned/paid channels). You never send a
+partner or program id — those are derived, which is what keeps them from
+drifting.
+
+:::danger[One of `idempotencyKey` or `externalEventId` is required]
 Send neither and the call is `performance_event_identity_required` (422). This
-is what makes ingestion exactly-once: `idempotency_key` is unique per
-`(brand, source)`, `external_event_id` is unique per `(provider, source)`.
+is what makes ingestion exactly-once: `idempotencyKey` is unique per
+`(brand, source)`, `externalEventId` is unique per `(provider, source)`.
 
-Use `external_event_id` when your source system already has a stable id (a
-Shopify order, a Stripe charge). Use `idempotency_key` when it does not.
+Use `externalEventId` when your source system already has a stable id (a
+Shopify order, a Stripe charge). Use `idempotencyKey` when it does not.
 :::
 
 ### Response
@@ -69,13 +77,14 @@ Shopify order, a Stripe charge). Use `idempotency_key` when it does not.
   "object": "performance_event",
   "deployment": "dep_...",
   "distribution": "dist_...",
+  "enrollment": "enr_...",
   "type": "purchase",
   "source": "checkout",
-  "value_minor": 4999,
+  "valueMinor": 4999,
   "currency": "usd",
   "quantity": 1,
-  "occurred_at": "2026-08-01T12:00:00.000Z",
-  "received_at": "2026-08-01T12:00:01.000Z",
+  "occurredAt": "2026-08-01T12:00:00.000Z",
+  "receivedAt": "2026-08-01T12:00:01.000Z",
   "properties": { "order_id": "1001" },
   "livemode": true,
   "duplicate": false,
@@ -83,18 +92,20 @@ Shopify order, a Stripe charge). Use `idempotency_key` when it does not.
 }
 ```
 
+`enrollment` is `null` when the event was ingested unattributed.
+
 `201` for a first ingestion, `200` with `duplicate: true` for a replay — so a
 retry loop is safe and observable rather than silent.
 
 `projected: true` means the event was also projected into the program metric
 spine, where it feeds qualification and rewards.
 
-### occurred_at matters
+### occurredAt matters
 
-Reward eligibility is decided at `occurred_at`, not at ingestion. An event that
+Reward eligibility is decided at `occurredAt`, not at ingestion. An event that
 *happened* while an enrollment or partnership was paused is permanently
 ineligible for reward grants even if it arrives days later. Send a truthful
-`occurred_at` when you are backfilling.
+`occurredAt` when you are backfilling.
 
 ## summary
 
@@ -109,15 +120,15 @@ const summary = await boomin.performance.summary({ deployment: "dep_..." });
   "object": "performance.summary",
   "filters": { "distribution": "dist_...", "deployment": null },
   "events": 412,
-  "value_minor": 1937600,
-  "by_type": [
-    { "type": "purchase", "events": 388, "value_minor": 1937600, "quantity": 402 },
-    { "type": "signup", "events": 24, "value_minor": 0, "quantity": 24 }
+  "valueMinor": 1937600,
+  "byType": [
+    { "type": "purchase", "events": 388, "valueMinor": 1937600, "quantity": 402 },
+    { "type": "signup", "events": 24, "valueMinor": 0, "quantity": 24 }
   ]
 }
 ```
 
-`by_type` is ordered by event count descending. `events` and `value_minor` are
+`byType` is ordered by event count descending. `events` and `valueMinor` are
 the totals across every type. Both filters are optional — with neither, you get
 the brand-wide rollup.
 

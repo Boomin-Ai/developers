@@ -67,7 +67,7 @@ If the wallet cannot cover the total, the launch does **not** fail. It emits
 
 ```js
 const operation = await boomin.operations.wait(accepted.operation, { timeout: 120000 });
-console.log(operation.status, operation.waiting_reason);
+console.log(operation.status, operation.waitingReason);
 // "waiting"  "funding_required"
 ```
 
@@ -110,7 +110,7 @@ and delivered to subscribed [webhooks](/sdk/webhooks/).
 
 ## Per-deployment allocation
 
-Each deployment carries `budget_allocation_minor` — its share of a funded budget
+Each deployment carries `budgetAllocationMinor` — its share of a funded budget
 when one has been allocated to it. It is `null` for unfunded distributions and
 for deployments with no allocation.
 
@@ -119,7 +119,7 @@ for deployments with no allocation.
 ```js
 await boomin.webhooks.endpoints.create({
   url: "https://your-app.com/webhooks/boomin",
-  enabled_events: ["budget.reserved", "budget.released", "budget.reserve_failed"],
+  enabledEvents: ["budget.reserved", "budget.released", "budget.reserve_failed"],
 });
 ```
 

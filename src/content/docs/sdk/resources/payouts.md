@@ -63,16 +63,19 @@ an empty result.
 {
   "object": "payout_run",
   "outcome": "no_eligible_activity",
-  "rules_evaluated": 3,
-  "splits_evaluated": 0,
-  "events_evaluated": 14,
-  "payouts_created": 0,
+  "rulesEvaluated": 3,
+  "splitsEvaluated": 0,
+  "eventsEvaluated": 14,
+  "payoutsCreated": 0,
   "underfunded": 0,
-  "awaiting_account": 0,
+  "awaitingAccount": 0,
   "payouts": [],
-  "summary": { "total_amount_minor": 0, "count": 0, "awaiting_account": 0, "bridged": 0, "unresolved_recipients": 0 }
+  "summary": { "totalAmountMinor": 0, "count": 0, "awaitingAccount": 0, "bridged": 0, "unresolvedRecipients": 0 }
 }
 ```
+
+(Raw HTTP responses spell these `rules_evaluated`, `total_amount_minor`, and so
+on; the SDK camelCases every response key.)
 
 ```js
 import { PayoutRulesRequiredError } from "@boomin/sdk";
@@ -193,12 +196,12 @@ const status = await boomin.payouts.connectStatus();
 {
   "object": "payouts.connect_status",
   "rails": [
-    { "id": "prail_...", "object": "payout_rail", "rail": "csv_batch", "status": "active", "is_default": true }
+    { "id": "prail_...", "object": "payout_rail", "rail": "csv_batch", "status": "active", "isDefault": true }
   ],
   "stripe": {
     "configured": true,
-    "partner_accounts": 42,
-    "partner_accounts_payouts_enabled": 0
+    "partnerAccounts": 42,
+    "partnerAccountsPayoutsEnabled": 0
   }
 }
 ```

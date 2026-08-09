@@ -4,7 +4,7 @@ description: Invite, approve, reject, pause, and resume a partnership's particip
 ---
 
 An **enrollment** is a partnership's participation in exactly one program. It is
-where the `referral_code` lives, and it is the unit the evergreen rail runs on.
+where the `referralCode` lives, and it is the unit the evergreen rail runs on.
 
 Enrollments are **flat** — there is no `/programs/{id}/enrollments` nesting. The
 payload carries the program.
@@ -40,23 +40,26 @@ tokens.
   "program": "prog_...",
   "partnership": "pship_...",
   "partner": "ptnr_...",
-  "referral_code": "ABC123",
-  "approval_status": "approved",
+  "referralCode": "ABC123",
+  "approvalStatus": "approved",
   "status": "active",
-  "billing_status": "billable",
-  "qualification_status": "qualified",
+  "billingStatus": "billable",
+  "qualificationStatus": "qualified",
   "source": "platform_api",
   "metadata": {},
   "livemode": true,
-  "joined_at": "2026-08-01T00:00:00.000Z",
-  "approved_at": "2026-08-01T00:00:00.000Z",
-  "rejected_at": null,
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "updated_at": "2026-08-01T00:00:00.000Z"
+  "joinedAt": "2026-08-01T00:00:00.000Z",
+  "approvedAt": "2026-08-01T00:00:00.000Z",
+  "rejectedAt": null,
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:00:00.000Z"
 }
 ```
 
-`qualification_status` is present on `create`, `retrieve`, `approve`, and
+Raw HTTP responses use the snake_case spellings (`referral_code`,
+`approval_status`); the SDK camelCases every response key.
+
+`qualificationStatus` is present on `create`, `retrieve`, `approve`, and
 `reject` — it comes from the enrollment's evaluated performance, so the pause
 and resume responses omit it rather than serve a stale value.
 
@@ -67,11 +70,11 @@ stating flatly:
 
 | Field | Values | Moved by |
 | --- | --- | --- |
-| `approval_status` | `pending` `approved` `rejected` | `approve()` / `reject()` **only** |
+| `approvalStatus` | `pending` `approved` `rejected` | `approve()` / `reject()` **only** |
 | `status` | `active` `paused` `archived` | `pause()` / `resume()` **only** |
 
 Approval commands never touch `status`. Pause and resume never touch
-`approval_status`. An enrollment can perfectly well be `(approved, paused)` or
+`approvalStatus`. An enrollment can perfectly well be `(approved, paused)` or
 `(pending, active)` — those are not contradictions, they are two different
 questions.
 
@@ -85,7 +88,7 @@ await boomin.enrollments.create({
   program: "prog_...",
   email: "creator@example.com",
   name: "Creator",
-  referral_code: "CREATOR10",   // optional; generated when omitted
+  referralCode: "CREATOR10",    // optional; generated when omitted
   metadata: { cohort: "spring" },
 });
 
@@ -103,7 +106,7 @@ In one call it: upserts the partner identity, opens the durable partnership as
 ### Re-inviting a rejected enrollment
 
 Rejection is **not** terminal. Re-inviting a rejected enrollment resets
-`approval_status` to `pending`, leaving `status` untouched. You may also approve
+`approvalStatus` to `pending`, leaving `status` untouched. You may also approve
 a previously rejected enrollment directly, without a re-invite.
 
 ## approve and reject
@@ -130,7 +133,7 @@ paused-period activity is permanently ineligible for reward grants — decided a
 the event's `occurred_at`.
 
 Billing continues while paused, deliberately: the partner's links still work.
-Archiving is the billing exit, and it keeps the `referral_code` for attribution
+Archiving is the billing exit, and it keeps the `referralCode` for attribution
 history.
 
 ## list
@@ -152,6 +155,7 @@ for await (const enrollment of boomin.enrollments.list({
 }
 ```
 
-Remember that query params are camel→snake converted by the client
-(`approvalStatus` → `approval_status`) but **body** fields are not — send
-`referral_code`, not `referralCode`.
+Query params and body fields are both camel→snake converted by the client
+(`approvalStatus` → `approval_status`, `referralCode` → `referral_code`).
+Already-snake_case spellings still pass through; raw HTTP callers send
+snake_case.

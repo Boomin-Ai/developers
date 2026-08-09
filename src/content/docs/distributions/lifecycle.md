@@ -85,11 +85,11 @@ What launch does, in order:
 
 1. Takes the subject's mutation slot — one live mutation per distribution.
 2. If the budget is `funded`, reserves the total from the brand wallet.
-3. Unions approved enrollments across every associated program.
-4. Creates one deployment per planned slot per eligible enrollment, keyed by a
-   stable `deployment_key`.
-5. Asks the resolved adapter to bring each deployment up.
-6. Rolls the outcome up into the distribution's status.
+3. Creates one deployment per (program × planned slot) — a channel, never a
+   person — keyed by a stable `deploymentKey`.
+4. Asks the resolved adapter to bring each channel up; the adapter mints one
+   promo link per approved enrollment, unioned across the associated programs.
+5. Rolls the outcome up into the distribution's status.
 
 Because the keys are stable, a relaunch resolves to the same deployments rather
 than duplicating them.
@@ -104,13 +104,13 @@ operation** — it never enqueues a second one.
 
 A launch where nine of twelve deployments came up is `partial` on the operation
 and `partially_active` on the distribution. That is not a failure to retry
-blindly — list the deployments, read each `observed_status` and `error`, and fix
+blindly — list the deployments, read each `observedStatus` and `error`, and fix
 the ones that need fixing.
 
 `failed` means **zero** deployments reached live. Status describes the usable
 execution outcome, never side-effect bookkeeping: if the adapter created
 something externally before failing, it stays visible through the deployment's
-`observed_status` and `external_ids` for reconciliation and cleanup.
+`observedStatus` and `externalIds` for reconciliation and cleanup.
 
 ## pause and resume
 
@@ -130,12 +130,12 @@ Three different pauses exist, at three different blast radii:
 
 | Verb | Stops |
 | --- | --- |
-| `deployments` pause (API) | One execution |
+| `deployments` pause (API) | One channel |
 | `distributions.pause` | Every deployment in this distribution |
-| `partnerships.pause` | That partner's deployments across **every** program |
+| `partnerships.pause` | That partner's promo **links** across every program — never the shared channel |
 
 In all three, links keep resolving and attribution continues. What stops is
-reward eligibility — decided at the event's `occurred_at`, so a late-arriving
+reward eligibility — decided at the event's `occurredAt`, so a late-arriving
 conversion for a paused period stays ineligible.
 
 ## cancel
@@ -156,7 +156,7 @@ Cancel, in order:
 4. Runs adapter cleanup of anything already created.
 5. Releases the **unconsumed** budget remainder only — consumed budget stays
    consumed.
-6. Preserves `external_ids`, observed state, and any cleanup failures.
+6. Preserves `externalIds`, observed state, and any cleanup failures.
 
 ### Cancel is idempotent
 
@@ -211,7 +211,7 @@ console.log(dist.status, dist.deployments); // "active" { total: 12, live: 12 }
 // 3. Subscribe
 await boomin.webhooks.endpoints.create({
   url: "https://your-app.com/webhooks/boomin",
-  enabled_events: [
+  enabledEvents: [
     "distribution.launching", "distribution.live",
     "distribution.failed", "distribution.canceled",
     "deployment.activated", "deployment.rejected", "deployment.drifted",

@@ -139,11 +139,11 @@ const status = await boomin.payouts.connectStatus();
 ```json
 {
   "object": "payouts.connect_status",
-  "rails": [ { "rail": "csv_batch", "status": "active", "is_default": true } ],
+  "rails": [ { "rail": "csv_batch", "status": "active", "isDefault": true } ],
   "stripe": {
     "configured": true,
-    "partner_accounts": 42,
-    "partner_accounts_payouts_enabled": 0
+    "partnerAccounts": 42,
+    "partnerAccountsPayoutsEnabled": 0
   }
 }
 ```
@@ -155,7 +155,7 @@ entries carry identity and state only — never `config`, which is a
 :::caution[The stripe_connect rail cannot pay anyone yet]
 Partner disbursement over Connect needs a transfers-only Express capability that
 is not yet approved on Boomin's Stripe platform account. Partners have no
-onboarding path to complete, `partner_accounts_payouts_enabled` stays at zero,
+onboarding path to complete, `partnerAccountsPayoutsEnabled` stays at zero,
 and there is deliberately **no `disburse` route** on the Platform API — an
 absent route beats one that always fails. Use `csv_batch`.
 :::
@@ -168,7 +168,7 @@ const batch = await boomin.payouts.batches.retrieve("pob_...");
 console.log(batch.items, batch.downloadUrl);
 ```
 
-`batches.retrieve` returns the bare batch plus its `items` and `download_url`.
+`batches.retrieve` returns the bare batch plus its `items` and `downloadUrl`.
 The full lifecycle — build, export, confirm, cancel — is on
 [`payouts.batches`](/sdk/resources/payout-batches/).
 
@@ -177,7 +177,7 @@ The full lifecycle — build, export, confirm, cancel — is on
 ```js
 await boomin.webhooks.endpoints.create({
   url: "https://your-app.com/webhooks/boomin",
-  enabled_events: ["payout.created", "payout.settled", "payout.failed"],
+  enabledEvents: ["payout.created", "payout.settled", "payout.failed"],
 });
 ```
 

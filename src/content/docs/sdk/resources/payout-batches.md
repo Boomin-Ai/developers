@@ -40,29 +40,32 @@ Ids are prefixed `pob_`.
   "rail": "csv_batch",
   "status": "exported",
   "currency": "usd",
-  "period_start": "2026-08-01",
-  "period_end": "2026-09-01",
-  "item_count": 12,
-  "total_amount_cents": 48500,
-  "export_file_key": "payouts/…/pob_….csv",
-  "export_format": "paypal_payouts_csv",
-  "external_batch_ref": null,
-  "exported_at": "2026-08-03T06:20:11.104Z",
-  "confirmed_at": null,
-  "completed_at": null,
+  "periodStart": "2026-08-01",
+  "periodEnd": "2026-09-01",
+  "itemCount": 12,
+  "totalAmountCents": 48500,
+  "exportFileKey": "payouts/…/pob_….csv",
+  "exportFormat": "paypal_payouts_csv",
+  "externalBatchRef": null,
+  "exportedAt": "2026-08-03T06:20:11.104Z",
+  "confirmedAt": null,
+  "completedAt": null,
   "error": null,
-  "created_at": "2026-08-03T06:19:44.201Z",
+  "createdAt": "2026-08-03T06:19:44.201Z",
   "items": [ … ],
-  "download_url": "https://…"
+  "downloadUrl": "https://…"
 }
 ```
 
-`items` accompanies `create` and `retrieve`. `download_url` appears on
-`retrieve` only — see [where download_url lives](#where-download_url-lives).
+(Raw HTTP responses spell these `period_start`, `total_amount_cents`, and so
+on; the SDK camelCases every response key.)
 
-Note the batch total is `total_amount_cents`, not `_minor`: the batch is a
-single-currency object and this is a pre-existing physical field name. Rule
-economics use `per_unit_minor` / `bonus_minor`.
+`items` accompanies `create` and `retrieve`. `downloadUrl` appears on
+`retrieve` only — see [where downloadUrl lives](#where-downloadurl-lives).
+
+Note the batch total is `totalAmountCents` (wire `total_amount_cents`), not
+`*Minor`: the batch is a single-currency object and this is a pre-existing
+physical field name. Rule economics use `perUnitMinor` / `bonusMinor`.
 
 ### Statuses
 
@@ -74,16 +77,16 @@ economics use `per_unit_minor` / `bonus_minor`.
 ```json
 {
   "id": "2d7c12ab-…",
-  "payout_id": "…",
-  "partner_id": "…",
-  "user_id": null,
-  "recipient_handle": "creator@example.com",
-  "amount_cents": 2500,
+  "payoutId": "…",
+  "partnerId": "…",
+  "userId": null,
+  "recipientHandle": "creator@example.com",
+  "amountCents": 2500,
   "currency": "usd",
   "status": "pending",
-  "external_item_ref": null,
-  "failure_reason": null,
-  "paid_at": null
+  "externalItemRef": null,
+  "failureReason": null,
+  "paidAt": null
 }
 ```
 
@@ -179,7 +182,7 @@ One export contract, not two.
 Repeating the call replays the same operation, and even a re-run writes the same
 storage key: one batch can never produce two artifacts.
 
-### Where download_url lives
+### Where downloadUrl lives
 
 Not in the 202. It is minted on **read**:
 
@@ -265,7 +268,7 @@ console.log(batch.items, batch.downloadUrl);
 `list` accepts `limit` (1–100, default 20) and `startingAfter`. Batches are few
 and already ordered, so paging is applied in memory — but it is applied.
 
-`retrieve` returns the bare batch **plus** `items` and `download_url` alongside.
+`retrieve` returns the bare batch **plus** `items` and `downloadUrl` alongside.
 
 ## Errors
 

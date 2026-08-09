@@ -84,7 +84,7 @@ List calls resolve one page and are *also* async-iterable across every page
 ```js
 // one page
 const page = await boomin.partnerships.list({ limit: 20 });
-console.log(page.object, page.data.length, page.has_more);
+console.log(page.object, page.data.length, page.hasMore);
 // "list"  20  true
 
 // every page
@@ -116,18 +116,13 @@ Already-snake_case keys you send are passed through untouched, so
 :::caution[Customer-owned data is never renamed]
 Fields whose contents you control are passed through verbatim in both
 directions, at every depth: a distribution's `spec` and `stats`, a deployment's
-`desired_state` / `observed_state` / `external_ids`, `metadata`, `permissions`,
-a performance event's `properties`, and a payout rail's `config.columns`.
+`desiredState` / `observedState` / `externalIds`, `metadata`, `permissions`,
+a performance event's `properties`, and a payout rail's `config.columns`. The
+field *names* themselves still convert — only the keys **inside** them do not.
 
 So `properties.orderId` reads back as `properties.orderId`, and a CSV column
 header stays byte-identical — see
 [`config.columns` is your data](/payouts/#4-configcolumns-is-your-data).
-:::
-
-:::note[Some pages still read responses in snake_case]
-Docs written before `1.0.0-beta.2` show `deployment.deployment_key` and the
-like. The payout pages are current; elsewhere, prefer the camelCase spelling if
-a field reads back `undefined`.
 :::
 
 ## Ids
@@ -161,20 +156,24 @@ Success responses are Stripe-style **bare objects** — the resource itself, not
 - `distributions.launch` → `{ distribution, status, operation }`, all **id strings**.
 - `distributions.pause/resume/cancel` (and the deployment verbs on the API) →
   the bare resource **plus** an `operation` id alongside.
-- `webhooks.endpoints.create/retrieve/update/rotateSecret` → wrapped as
-  `{ webhook_endpoint: { ... } }`.
 - `payouts.exportCsv` and `payouts.batches.export` →
   `{ batch, status: "exporting", operation }`, all **id strings**;
   `payouts.batches.confirm` → the same with `status: "confirming"`.
 
+On the raw wire, webhook endpoints are the one exception to bareness —
+`create`/`retrieve`/`update`/`rotate_secret` answer
+`{ "webhook_endpoint": { ... } }` — but the SDK **unwraps** that envelope, so
+every `webhooks.endpoints.*` method still resolves to the bare endpoint.
+
 A handful of reads return the bare resource plus a companion field:
 `distributions.validate` adds `valid` and `errors`;
 `partnerships.retrieve` adds `enrollments`;
-`payouts.batches.retrieve` adds `items` and `download_url`;
+`payouts.batches.retrieve` adds `items` and `downloadUrl`;
 `payouts.batches.create` adds `items` and `skipped`;
 `performance.events.create` adds `duplicate` and `projected`.
 
-Lists are always `{ object: "list", data: [...], has_more: boolean }`.
+Lists are always `{ object: "list", data: [...], hasMore: boolean }` (wire:
+`has_more`).
 
 ## Errors
 
