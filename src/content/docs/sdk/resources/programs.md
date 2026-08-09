@@ -31,7 +31,7 @@ the app. Everything below **is** served.
   "id": "prog_...",
   "object": "program",
   "name": "Launch Partners",
-  "type": "referral",
+  "type": "performance",
   "description": null,
   "status": "active",
   "visibility": "private",
