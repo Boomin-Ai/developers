@@ -34,7 +34,7 @@ distributions in it at all:
 | --- | --- | --- |
 | What it is | An always-on referral/affiliate program | A time-boxed, funded, measurable push |
 | Setup | Create a program, invite, approve | Everything on the left, **plus** a distribution |
-| Attribution | One program `referral_code` per enrollment | One instrument per **deployment** |
+| Attribution | One program `referralCode` per enrollment | One promo link per partner per **deployment** |
 | Budget | None — rewards accrue | Optional `metered` or `funded` reservation |
 | Lifecycle | Runs until paused or archived | `draft` → `ready` → `launching` → `active` → `completed` |
 | Good for | Ambassador and affiliate programs | Launches, drops, events, seasonal pushes |
@@ -58,7 +58,7 @@ Operation         the async progress surface for every mutation
 | Page | What it covers |
 | --- | --- |
 | [Lifecycle & launching](/distributions/lifecycle/) | Every status transition, validate, launch, pause, resume, cancel |
-| [Deployments](/distributions/deployments/) | Fan-out, `deployment_key`, desired vs observed, per-deployment attribution |
+| [Deployments](/distributions/deployments/) | Fan-out, `deploymentKey`, desired vs observed, per-partner promo links |
 | [Budgets](/distributions/budgets/) | `none` / `metered` / `funded`, reservation, drawdown, release |
 | [Performance](/distributions/performance/) | Ingesting conversions and reading rollups |
 | [Payouts](/distributions/payouts/) | From measured value to money out |
@@ -85,7 +85,7 @@ registry resolves an adapter, or rejects the combination up front during
 `validate()` with `channel_type_not_yet_supported`.
 
 Exactly one adapter is registered today: the Boomin partnership adapter,
-supporting `partner` / `referral` / `boomin` / `referral_link`. Everything else
+supporting `partner_program` / `referral` / `boomin` / `referral_link`. Everything else
 fails validation rather than failing at launch, which is the cheap place to
 fail.
 

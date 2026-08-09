@@ -31,13 +31,13 @@ the app. Everything below **is** served.
   "id": "prog_...",
   "object": "program",
   "name": "Launch Partners",
-  "type": "referral",
+  "type": "performance",
   "description": null,
   "status": "active",
   "visibility": "private",
   "metadata": {},
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "updated_at": "2026-08-01T00:00:00.000Z"
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:00:00.000Z"
 }
 ```
 
@@ -53,7 +53,7 @@ distribution ever launches.
 ```js
 await boomin.programs.requirements.create("prog_...", {
   scope: "program_entry",
-  metric_key: "followers",
+  metricKey: "followers",
   operator: "gte",
   threshold: 5000,
   required: true,
@@ -80,11 +80,11 @@ the response) and re-evaluates the program.
 | Field | Values |
 | --- | --- |
 | `scope` | `program_entry` `program_maintenance` `tier` `campaign` `benefit` `invite` |
-| `scope_id` | The tier/campaign/benefit the rule attaches to, when `scope` is not program-level |
-| `metric_key` | See the metric vocabulary below |
+| `scopeId` | The tier/campaign/benefit the rule attaches to, when `scope` is not program-level |
+| `metricKey` | See the metric vocabulary below |
 | `operator` | `gte` `lte` `eq` `neq` `exists` |
 | `threshold` | Integer, or `null` for `exists` |
-| `window_days` | Rolling window; `null` = lifetime |
+| `windowDays` | Rolling window; `null` = lifetime |
 | `weight` | Integer weight in the score |
 | `required` | `true` = a hard gate; `false` = contributes to the score |
 | `status` | `active` `paused` `archived` |
@@ -96,7 +96,7 @@ the response) and re-evaluates the program.
 `channel_connected`, `manual_approval`, `event_registration`,
 `template_install`.
 
-A `metric_key` outside this set is rejected with `invalid_request`. The
+A `metricKey` outside this set is rejected with `invalid_request`. The
 vocabulary is closed on purpose — a requirement that cannot be measured is not a
 requirement.
 
@@ -128,13 +128,13 @@ partner joins.
 
 ```js
 const config = await boomin.programs.connectConfig.retrieve("prog_...");
-console.log(config.public_key, config.allowed_origins);
+console.log(config.publicKey, config.allowedOrigins);
 
 await boomin.programs.connectConfig.update("prog_...", {
-  allowed_origins: ["https://your-app.com", "http://localhost:5173"],
-  allowed_redirect_origins: ["https://your-app.com"],
-  required_channels: ["instagram"],
-  default_approval_status: "pending",
+  allowedOrigins: ["https://your-app.com", "http://localhost:5173"],
+  allowedRedirectOrigins: ["https://your-app.com"],
+  requiredChannels: ["instagram"],
+  defaultApprovalStatus: "pending",
 });
 ```
 
@@ -144,7 +144,7 @@ await boomin.programs.connectConfig.update("prog_...", {
 | `update(programId, params, options)` | `POST /programs/{id}/connect_config` | `connect_config:write` |
 
 `retrieve` answers JSON `null` when the surface has not been minted yet; the
-first `update` mints it. `default_approval_status` accepts `pending` (an
+first `update` mints it. `defaultApprovalStatus` accepts `pending` (an
 applications inbox) or `approved` (open enrollment).
 
 ## programs.handoffConfig
@@ -160,7 +160,7 @@ const config = await boomin.programs.handoffConfig.update("prog_...", {
   issuer: "your-app.com",
   audience: "boomin.ai",
 });
-console.log(config.signing_secret); // present only when just minted or supplied
+console.log(config.signingSecret); // present only when just minted or supplied
 ```
 
 | Method | Route | Scope |
@@ -168,8 +168,8 @@ console.log(config.signing_secret); // present only when just minted or supplied
 | `retrieve(programId, options)` | `GET /programs/{id}/handoff_config` | `handoff:read` |
 | `update(programId, params, options)` | `POST /programs/{id}/handoff_config` | `handoff:write` |
 
-`retrieve` returns a `{ object: "list", data, has_more }` envelope of issuer
+`retrieve` returns a `{ object: "list", data, hasMore }` envelope of issuer
 configs (filter with `?issuer=`). `update` is create-or-update **per issuer**:
-omit `signing_secret` on first call and Boomin mints an `hs_boomin_live_...`
-secret, returned in that response only. Pass `signing_secret` explicitly to
+omit `signingSecret` on first call and Boomin mints an `hs_boomin_live_...`
+secret, returned in that response only. Pass `signingSecret` explicitly to
 rotate it.

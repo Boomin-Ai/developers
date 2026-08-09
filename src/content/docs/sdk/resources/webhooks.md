@@ -12,12 +12,12 @@ event more than once, and your handler must dedupe on `event.id`. The
 and shows the pattern.
 
 ```js
-const { webhook_endpoint } = await boomin.webhooks.endpoints.create({
+const endpoint = await boomin.webhooks.endpoints.create({
   url: "https://your-app.com/webhooks/boomin",
   description: "Production",
-  enabled_events: ["distribution.live", "payout.settled"],
+  enabledEvents: ["distribution.live", "payout.settled"],
 });
-console.log(webhook_endpoint.id, webhook_endpoint.secret);
+console.log(endpoint.id, endpoint.secret);
 // we_...  whsec_...
 ```
 
@@ -33,25 +33,30 @@ console.log(webhook_endpoint.id, webhook_endpoint.secret);
 Endpoints are **organization**-scoped, not brand-scoped: one endpoint receives
 every brand's events in the org, and each event carries its own subject.
 
-## The wrapper
+## The wrapper (raw HTTP only)
 
-Webhook endpoints are the one resource in the API that is **not** returned bare.
-`create`, `retrieve`, `update`, and `rotateSecret` all answer:
+On the wire, webhook endpoints are the one resource that is **not** returned
+bare — the raw HTTP responses of `create`, `retrieve`, `update`, and
+`rotate_secret` answer:
 
 ```json
 { "webhook_endpoint": { "id": "we_...", "object": "webhook_endpoint", ... } }
 ```
 
-`list` is a normal `{ object: "list", data, has_more }` envelope of unwrapped
-endpoint objects, and `del` answers a bare
-`{ id, object, deleted: true }`.
+**The SDK unwraps that envelope for you** — every `endpoints.*` method resolves
+to the bare endpoint object. `list` is a normal
+`{ object: "list", data, hasMore }` envelope of unwrapped endpoint objects, and
+`del` answers a bare `{ id, object, deleted: true }`.
 
 ```js
-const { webhook_endpoint } = await boomin.webhooks.endpoints.retrieve("we_...");
+const endpoint = await boomin.webhooks.endpoints.retrieve("we_...");
 const { data } = await boomin.webhooks.endpoints.list();
 ```
 
 ## The endpoint object
+
+As the SDK returns it (raw HTTP uses snake_case: `enabled_events`,
+`created_at`):
 
 ```json
 {
@@ -59,13 +64,13 @@ const { data } = await boomin.webhooks.endpoints.list();
   "object": "webhook_endpoint",
   "url": "https://your-app.com/webhooks/boomin",
   "description": "Production",
-  "enabled_events": ["distribution.live", "payout.settled"],
+  "enabledEvents": ["distribution.live", "payout.settled"],
   "status": "enabled",
   "secret": "whsec_...",
-  "rotated_at": null,
+  "rotatedAt": null,
   "livemode": true,
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "updated_at": "2026-08-01T00:00:00.000Z"
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:00:00.000Z"
 }
 ```
 
@@ -81,7 +86,7 @@ is no "show me the secret again".
 await boomin.webhooks.endpoints.create({
   url: "https://your-app.com/webhooks/boomin",  // required
   description: "Production",                     // optional, ≤ 500 chars
-  enabled_events: ["distribution.live"],         // optional, ≤ 100 entries
+  enabledEvents: ["distribution.live"],          // optional, ≤ 100 entries
 });
 ```
 
@@ -91,10 +96,10 @@ Answers **201**.
 (`localhost`, `127.0.0.1`, `[::1]`) so local development works. Anything else is
 `invalid_request` (400).
 
-**Subscriptions.** Every entry in `enabled_events` must come from the
+**Subscriptions.** Every entry in `enabledEvents` must come from the
 [public event vocabulary](/sdk/resources/events/); an unknown type is
 `invalid_event_type` (400) naming the offenders. An empty or omitted
-`enabled_events` subscribes the endpoint to **all** public types.
+`enabledEvents` subscribes the endpoint to **all** public types.
 
 **No backfill.** A new endpoint receives events appended **at or after** its
 creation. To cover the gap, page [`events.list`](/sdk/resources/events/) by
@@ -104,7 +109,7 @@ creation. To cover the gap, page [`events.list`](/sdk/resources/events/) by
 
 ```js
 await boomin.webhooks.endpoints.update("we_...", {
-  enabled_events: ["distribution.live", "distribution.failed", "payout.settled"],
+  enabledEvents: ["distribution.live", "distribution.failed", "payout.settled"],
   status: "disabled",
 });
 ```
@@ -119,8 +124,8 @@ retrying them.
 ## rotateSecret
 
 ```js
-const { webhook_endpoint } = await boomin.webhooks.endpoints.rotateSecret("we_...");
-console.log(webhook_endpoint.secret); // the NEW secret, shown once
+const endpoint = await boomin.webhooks.endpoints.rotateSecret("we_...");
+console.log(endpoint.secret); // the NEW secret, shown once
 ```
 
 Installs a fresh `whsec_...` and keeps the **previous** secret honored for a

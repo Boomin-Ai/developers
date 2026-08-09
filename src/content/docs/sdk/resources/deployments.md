@@ -3,14 +3,16 @@ title: deployments
 description: Execution truth — one concrete thing running somewhere, with desired and observed state kept apart.
 ---
 
-A **deployment** is execution truth. Launching a distribution fans it out into
-one deployment per planned slot per eligible enrollment.
+A **deployment** is execution truth: one channel of execution, one per
+(distribution × program × planned slot). It is never a person — the partners it
+reaches are the promo links the adapter mints beneath it, one per approved
+partner.
 
 ```js
 const deployment = await boomin.deployments.retrieve("dep_...");
 
 for await (const dep of boomin.deployments.list({ distribution: "dist_..." })) {
-  console.log(dep.deployment_key, dep.status, dep.observed_status);
+  console.log(dep.deploymentKey, dep.status, dep.observedStatus);
 }
 ```
 
@@ -26,30 +28,40 @@ for await (const dep of boomin.deployments.list({ distribution: "dist_..." })) {
   "id": "dep_...",
   "object": "deployment",
   "distribution": "dist_...",
-  "deployment_key": "enroll_<enrollment-uuid>:boomin:referral_link:primary",
-  "mode": "partner",
+  "deploymentKey": "program_<program-id>:boomin:referral_link:primary",
+  "mode": "partner_program",
   "medium": "referral",
   "channel": "boomin",
   "format": "referral_link",
   "adapter": "boomin_partnership",
   "status": "active",
-  "observed_status": "live",
-  "desired_state": {},
-  "observed_state": {},
-  "external_ids": { "promo_link_id": "…", "code": "…" },
-  "partnership": "pship_...",
-  "enrollment": "enr_...",
+  "observedStatus": "live",
+  "desiredState": {},
+  "observedState": {},
+  "externalIds": { "promo_link_count": 2, "codes": ["…", "…"] },
+  "program": "prog_...",
   "connection": null,
-  "budget_allocation_minor": null,
+  "budgetAllocationMinor": null,
   "error": null,
   "livemode": true,
-  "activated_at": "2026-08-01T00:00:00.000Z",
-  "completed_at": null,
-  "last_observed_at": "2026-08-01T00:05:00.000Z",
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "updated_at": "2026-08-01T00:05:00.000Z"
+  "activatedAt": "2026-08-01T00:00:00.000Z",
+  "completedAt": null,
+  "lastObservedAt": "2026-08-01T00:05:00.000Z",
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:05:00.000Z"
 }
 ```
+
+Raw HTTP responses use the snake_case spellings (`deployment_key`,
+`observed_status`); the SDK camelCases every response key. The keys **inside**
+`externalIds` / `desiredState` / `observedState` are adapter-owned and pass
+through verbatim.
+
+There is no `partnership` or `enrollment` field: a deployment is a channel of
+execution, so it names the **program** it runs for and never a person. The
+answer to "which partner?" is "all of them, via the links" — per-partner
+attribution reads off
+[`PerformanceEvent.enrollment`](/sdk/resources/performance/).
 
 `retrieve` additionally includes a `capabilities` descriptor, honest to the
 deployment's current state. `list` omits it.
@@ -61,16 +73,16 @@ A deployment keeps two answers apart, permanently:
 | Field | Question | Values |
 | --- | --- | --- |
 | `status` | What you asked for | `active` `paused` `canceled` |
-| `observed_status` | What the world reports back | `pending` `provisioning` `live` `paused` `pending_review` `rejected` `failed` `completed` `unknown` |
+| `observedStatus` | What the world reports back | `pending` `provisioning` `live` `paused` `pending_review` `rejected` `failed` `completed` `unknown` |
 
 They disagree all the time and that is not an error — it is the gap the
 reconciler exists to close. `deployment.drifted` fires when the gap is
 persistent rather than transient.
 
-## deployment_key
+## deploymentKey
 
 ```txt
-enroll_<enrollment-uuid>:<channel>:<format>:<slot-name>
+program_<program-id>:<channel>:<format>:<slot-name>
 ```
 
 Unique per distribution, and **stable**: replanning the same distribution
@@ -79,21 +91,30 @@ launch retries and resumes idempotent at the deployment level.
 
 ## Attribution
 
-Each partner deployment owns its **own** attribution instrument, distinct from
-the enrollment's evergreen program `referral_code`. The instrument ids land in
-`external_ids`.
+The channel carries one promo link per approved partner — the adapter mints
+them at launch, distinct from each enrollment's evergreen program
+`referralCode`. The link codes land in `externalIds` (`promo_link_count`,
+`codes`).
 
-That separation is the whole point: two distributions sharing one enrollment
-credit **separately**, because conversions route by `deployment_id`, not by
-partner.
+Two distributions sharing one program still credit **separately**, because each
+has its own channel and its own links. Which *partner* earned a conversion is
+the event's own `enrollment` field, stamped by the `?ref=` link paths — see
+[performance](/sdk/resources/performance/).
 
 ## list
 
 | Param | Values |
 | --- | --- |
 | `distribution` | A `dist_...` id — the filter you almost always want |
+| `program` | A `prog_...` id — every channel running for that program |
+| `mode` | `owned` \| `partner_program` \| `paid` |
+| `status` | Desired status: `active` \| `paused` \| `canceled` |
 | `limit` | 1–100, default 20 |
 | `startingAfter` | A `dep_...` cursor |
+
+There is no `partnership` filter — a channel names no partner, so it would
+answer every query with an empty page. "This partner's channels" is `program`
+plus the partner's own enrollment.
 
 ## Pausing one deployment
 
@@ -127,5 +148,5 @@ await boomin.operations.wait(operation);
 ```
 
 To pause everything at once, pause the [distribution](/sdk/resources/distributions/)
-instead — or the [partnership](/sdk/resources/partnerships/), which pauses that
-partner's deployments across every program.
+instead. Pausing a [partnership](/sdk/resources/partnerships/) pauses that
+partner's promo **links** across every program — never the shared channel.

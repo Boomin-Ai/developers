@@ -52,7 +52,7 @@ These three are routinely confused, and the distinction is load-bearing:
 | --- | --- | --- |
 | **Partner** | Global identity | Outlives every brand relationship |
 | **Partnership** | One brand ↔ one partner | Outlives every program |
-| **Enrollment** | One partnership in one program | Carries the program `referral_code` |
+| **Enrollment** | One partnership in one program | Carries the program `referralCode` |
 
 A partner in two of your programs has **one** partnership and **two**
 enrollments — which is exactly why billing counts distinct partnerships, not

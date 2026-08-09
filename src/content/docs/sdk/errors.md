@@ -189,8 +189,8 @@ Full context on each: [Getting partners paid](/payouts/).
 ### Funding
 
 `funding_required` is not an error code in the registry — it is an operation
-**`waiting_reason`**. A funded launch with an underfunded wallet parks the
-operation at `status: "waiting"`, `waiting_reason: "funding_required"`, and
+**`waitingReason`**. A funded launch with an underfunded wallet parks the
+operation at `status: "waiting"`, `waitingReason: "funding_required"`, and
 resumes once the wallet is topped up. The SDK's `FundingRequiredError` exists
 for surfaces that raise the same condition synchronously.
 

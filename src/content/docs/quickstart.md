@@ -210,15 +210,15 @@ const enrollment = await boomin.enrollments.create({
 });
 
 await boomin.enrollments.approve(enrollment.id);
-console.log(enrollment.id, enrollment.referral_code);
+console.log(enrollment.id, enrollment.referralCode);
 // enr_...  ABC123
 ```
 
 Inviting upserts the partner identity, creates the durable partnership
 (`pending`), and creates the enrollment `(pending, active)`. Approving flips
-`approval_status` to `approved` and activates the partnership.
+`approvalStatus` to `approved` and activates the partnership.
 
-At this point the evergreen rail is already live: that `referral_code` resolves
+At this point the evergreen rail is already live: that `referralCode` resolves
 and attributes.
 
 ## 8. Create a funded distribution
@@ -277,7 +277,7 @@ const operation = await boomin.operations.wait(accepted.operation, {
   pollInterval: 2000,
 });
 
-console.log(operation.status, operation.waiting_reason);
+console.log(operation.status, operation.waitingReason);
 // "succeeded" | "partial" | "failed" | "canceled"
 ```
 
@@ -286,7 +286,7 @@ yourself; it does not throw on a failed operation. It throws `BoominError` with
 code `operation_wait_timeout` only when your timeout elapses.
 
 If the brand wallet cannot cover a funded budget, the operation parks at
-`status: "waiting"` with `waiting_reason: "funding_required"` instead of
+`status: "waiting"` with `waitingReason: "funding_required"` instead of
 failing. Top the wallet up in the app and it proceeds.
 
 Then read what got created:
@@ -297,14 +297,15 @@ console.log(dist.status, dist.deployments);
 // "active"  { total: 1, live: 1 }
 
 for await (const deployment of boomin.deployments.list({ distribution: dist.id })) {
-  console.log(deployment.deployment_key, deployment.observed_status, deployment.external_ids);
-  // enroll_<id>:boomin:referral_link:primary  live  { promo_link_id: "...", code: "ep..." }
+  console.log(deployment.deploymentKey, deployment.observedStatus, deployment.externalIds);
+  // program_<id>:boomin:referral_link:primary  live  { promo_link_count: 1, codes: ["ep..."] }
 }
 ```
 
-Each deployment owns its **own** attribution instrument, distinct from the
-program's evergreen referral code — so two distributions sharing one enrollment
-credit separately.
+A deployment is a **channel**, one per (distribution × program × slot) — never a
+person. The adapter mints one promo link per approved partner beneath it,
+distinct from the program's evergreen referral code — so two distributions
+sharing one program credit separately.
 
 ## 11. Record a conversion
 
@@ -313,17 +314,21 @@ Business measurements go in against a deployment:
 ```js
 await boomin.performance.events.create({
   deployment: "dep_...",
+  enrollment: enrollment.id, // which partner earned it — omit for unattributed measurement
   type: "purchase",
-  value_minor: 4999,
+  valueMinor: 4999,
   currency: "usd",
   quantity: 1,
-  idempotency_key: "order_1001", // or external_event_id — one of the two is required
+  externalEventId: "order_1001", // or idempotencyKey — one of the two is required
   properties: { order_id: "1001" },
 });
 
 const summary = await boomin.performance.summary({ distribution: distribution.id });
-console.log(summary.events, summary.value_minor, summary.by_type);
+console.log(summary.events, summary.valueMinor, summary.byType);
 ```
+
+The `?ref=` link paths stamp `enrollment` themselves; a first-party integration
+recording its own conversions passes it explicitly.
 
 ## 12. Receive a webhook
 
@@ -331,17 +336,17 @@ Register an endpoint. The signing secret is revealed **once**, in this response
 only.
 
 ```js
-const { webhook_endpoint } = await boomin.webhooks.endpoints.create({
+const endpoint = await boomin.webhooks.endpoints.create({
   url: "https://your-app.com/webhooks/boomin",
   description: "Production",
-  enabled_events: ["distribution.live", "deployment.activated", "payout.settled"],
+  enabledEvents: ["distribution.live", "deployment.activated", "payout.settled"],
 });
 
-console.log(webhook_endpoint.id, webhook_endpoint.secret);
+console.log(endpoint.id, endpoint.secret);
 // we_...  whsec_...
 ```
 
-An empty (or omitted) `enabled_events` subscribes the endpoint to every public
+An empty (or omitted) `enabledEvents` subscribes the endpoint to every public
 event type.
 
 Verify deliveries with `constructEvent`. It is **async** (WebCrypto), and it

@@ -31,13 +31,13 @@ const partnership = await boomin.partnerships.retrieve("pship_...");
   "status": "active",
   "rights": {},
   "permissions": {},
-  "compensation_defaults": {},
+  "compensationDefaults": {},
   "source": "platform_api",
   "livemode": true,
-  "started_at": "2026-08-01T00:00:00.000Z",
-  "ended_at": null,
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "updated_at": "2026-08-01T00:00:00.000Z"
+  "startedAt": "2026-08-01T00:00:00.000Z",
+  "endedAt": null,
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:00:00.000Z"
 }
 ```
 
@@ -66,22 +66,28 @@ An unrecognized `status` is `invalid_status` (400), not an empty list.
 
 ## pause and resume
 
-`pause()` is the broad brake. It:
+`pause()` is the broad brake for one partner. It:
 
-- blocks **new** partner deployments across every program,
-- pauses **existing** partner deployments through operations,
+- pauses that partner's **promo links** across every program — never the shared
+  deployment channel, so other partners on the same channel keep running,
+- blocks the partner from receiving **new** links,
 - leaves enrollments and connection grants **untouched** — pause never silently
   rewrites enrollment status, so resume is exact,
-- keeps existing links resolving, so attribution continues.
+- keeps the paused links resolving, so attribution continues; the money stop is
+  reward eligibility, decided at the event's `occurredAt`.
 
 ```js
-await boomin.partnerships.pause("pship_...");
+const result = await boomin.partnerships.pause("pship_...");
+console.log(result.linksPaused, result.channels);
 // later
 await boomin.partnerships.resume("pship_...");
 ```
 
-The response includes `deployments_paused` / `deployments_resumed` — the
-deployment ids the command actually moved.
+The response includes `linksPaused` / `linksResumed` — the promo-link codes the
+verb actually moved — plus `channels`, the `dep_...` ids those links live on
+(wire fields: `links_paused` / `links_resumed` / `channels`). On resume, only
+links on a channel the brand still wants live come back; a paused or canceled
+channel outranks the relationship.
 
 :::caution[Pausing is not a billing exit]
 Activity that occurs while paused is **permanently ineligible for reward
@@ -110,7 +116,7 @@ identity.
 await boomin.partnerships.updatePermissions("pship_...", {
   permissions: { publish_on_behalf: false },
   rights: { territory: "us" },
-  compensation_defaults: { revenue_share_bps: 1500 },
+  compensationDefaults: { revenue_share_bps: 1500 },
 });
 ```
 

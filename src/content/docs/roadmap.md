@@ -10,8 +10,9 @@ description: What is live now and what comes next.
 - `@boomin/sdk` — twelve resource clients over `/v1/platform`.
 - Distributions: create, validate, launch, pause, resume, cancel — every
   mutation returns an [Operation](/sdk/resources/operations/).
-- Deployments with stable `deployment_key`s, desired-vs-observed state, and
-  per-deployment attribution instruments.
+- Program-grain deployments — one channel per (distribution × program × slot),
+  with stable `deploymentKey`s, desired-vs-observed state, and one promo link
+  per approved partner.
 - Funded and metered [budgets](/distributions/budgets/): wallet reservation at
   launch, exactly-once drawdown, remainder release on cancel.
 - [Performance](/distributions/performance/) ingestion with exactly-once keys
@@ -25,13 +26,13 @@ description: What is live now and what comes next.
 ### Relationships and programs
 
 - Durable partnerships, program enrollments, and the two orthogonal enrollment
-  fields (`approval_status` vs `status`).
+  fields (`approvalStatus` vs `status`).
 - Qualification requirements and tiers.
 - Connections and per-partnership grants.
 
 ### Surfaces
 
-- `@boomin/connect` browser SDK and `@boomin/cli` **0.3.0**.
+- `@boomin/connect` browser SDK and `@boomin/cli` **0.5.0**.
 - Account-first [Partner Connect](/partner-connect/account-first/), email OTP
   before Instagram OAuth, pending approval and admin approve/reject.
 - Referral-first scaffold (`referral init`) and signed handoff provisioning

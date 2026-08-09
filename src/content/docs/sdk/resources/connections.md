@@ -31,7 +31,7 @@ await boomin.connections.revoke("conn_...");
   "object": "connection",
   "kind": "social_profile",
   "provider": "instagram",
-  "provider_account_id": "17841400000000000",
+  "providerAccountId": "17841400000000000",
   "owner": { "type": "partner", "id": "ptnr_..." },
   "status": "connected",
   "scopes": ["instagram_basic"],
@@ -40,17 +40,20 @@ await boomin.connections.revoke("conn_...");
     {
       "partnership": "pship_...",
       "permissions": {},
-      "granted_at": "2026-08-01T00:00:00.000Z",
-      "revoked_at": null
+      "grantedAt": "2026-08-01T00:00:00.000Z",
+      "revokedAt": null
     }
   ],
-  "connected_at": "2026-08-01T00:00:00.000Z",
-  "disconnected_at": null,
-  "last_sync_at": "2026-08-01T00:05:00.000Z",
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "updated_at": "2026-08-01T00:05:00.000Z"
+  "connectedAt": "2026-08-01T00:00:00.000Z",
+  "disconnectedAt": null,
+  "lastSyncAt": "2026-08-01T00:05:00.000Z",
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:05:00.000Z"
 }
 ```
+
+Raw HTTP responses use the snake_case spellings (`provider_account_id`,
+`connected_at`); the SDK camelCases every response key.
 
 `grants` appears on `retrieve` only, and only for connections you reach *through*
 a grant. `kind` is one of `social_profile`, `ad_account`, `page`, `pixel`,
@@ -76,12 +79,12 @@ difference is deliberate:
 
 | Owner | What `revoke()` does |
 | --- | --- |
-| **Brand** (yours) | Revokes the connection itself — `status: "revoked"`, `disconnected_at` set |
+| **Brand** (yours) | Revokes the connection itself — `status: "revoked"`, `disconnectedAt` set |
 | **Partner** | Revokes **your grants** on it. The identity is the partner's; you can only sever your own access |
 
 ```js
 const result = await boomin.connections.revoke("conn_...");
-console.log(result.revoked_grants); // 0 for brand-owned, n for partner-owned
+console.log(result.revokedGrants); // 0 for brand-owned, n for partner-owned
 ```
 
 Revoking a connection that is already revoked — or one where every grant of

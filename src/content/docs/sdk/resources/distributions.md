@@ -46,22 +46,26 @@ draft.
   "description": null,
   "status": "active",
   "spec": { "plan": { "partner": { "slots": [ ... ] } } },
-  "plan_hash": "…",
+  "planHash": "…",
   "programs": ["prog_..."],
   "budget": { "mode": "funded", "asset": "credit", "total": 50000, "consumed": 12000, "released": 0 },
-  "deployments": { "total": 12, "live": 11 },
+  "deployments": { "total": 2, "live": 2 },
   "stats": {},
   "error": null,
   "livemode": true,
-  "launched_at": "2026-08-01T00:00:00.000Z",
-  "paused_at": null,
-  "completed_at": null,
-  "canceled_at": null,
-  "failed_at": null,
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "updated_at": "2026-08-01T00:00:00.000Z"
+  "launchedAt": "2026-08-01T00:00:00.000Z",
+  "pausedAt": null,
+  "completedAt": null,
+  "canceledAt": null,
+  "failedAt": null,
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "updatedAt": "2026-08-01T00:00:00.000Z"
 }
 ```
+
+Raw HTTP responses use the snake_case spellings (`plan_hash`, `launched_at`);
+the SDK camelCases every response key. The keys inside `spec` and `stats` are
+yours and pass through verbatim.
 
 `deployments` is a rollup, present on `retrieve` and `list` only. `budget.total`
 is in **minor units** of `budget.asset`; `consumed` and `released` come off the
@@ -112,8 +116,9 @@ budget: { mode: "funded", asset: "credit", total: 50000 }
 
 ### spec
 
-The deployment plan. Omit it entirely and you get the default: one partner
-referral-link slot per approved enrollment.
+The deployment plan. Omit it entirely and you get the default: one
+partner-program referral-link slot — a single channel per associated program,
+whose adapter mints one promo link per approved enrollment.
 
 ```js
 spec: {
@@ -133,7 +138,7 @@ Slots default to `name: "primary"` (then `slot_1`, `slot_2`, …), and an omitte
 to `all_approved`.
 
 Only combinations a registered adapter supports will validate. In this release
-that is exactly one: `partner` / `referral` / `boomin` / `referral_link`.
+that is exactly one: `partner_program` / `referral` / `boomin` / `referral_link`.
 
 ## update
 
@@ -188,7 +193,7 @@ Launch requires `status: "ready"`; anything else is `distribution_not_ready`
 accepted — it reuses the live operation rather than starting a second one.
 
 A funded launch that outruns the wallet parks the operation at
-`status: "waiting"`, `waiting_reason: "funding_required"`. It is not dead — top
+`status: "waiting"`, `waitingReason: "funding_required"`. It is not dead — top
 up and it proceeds.
 
 ## pause, resume, cancel
@@ -227,7 +232,7 @@ draft | ready | active | partially_active | paused → canceled
 
 `launching → failed` means **zero** deployments reached live — status is a
 usable execution outcome, never side-effect bookkeeping. Provider-side leftovers
-stay visible through each deployment's `observed_status` and `external_ids`.
+stay visible through each deployment's `observedStatus` and `externalIds`.
 
 Full detail: [Lifecycle & launching](/distributions/lifecycle/).
 

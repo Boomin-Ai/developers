@@ -39,26 +39,26 @@ program.
 
 - Created **pending** at the first invite.
 - Flips to **active** when the first enrollment is approved.
-- `pause()` blocks *new* partner deployments across every program and pauses
-  existing ones. Enrollments and connection grants are preserved untouched, and
-  existing links keep resolving, so attribution continues.
+- `pause()` pauses that partner's promo **links** across every program — never
+  the shared deployment channel. Enrollments and connection grants are preserved
+  untouched, and the paused links keep resolving, so attribution continues.
 - `end()` is the explicit terminal command. It never fires automatically.
 
 ### Enrollment
 
 A partnership's participation in one program. This is where the referral code
-lives (`referral_code` is unique per program by design).
+lives (`referralCode` is unique per program by design).
 
 Enrollments carry **two orthogonal fields** — this trips people up, so be
 precise:
 
 | Field | Values | Moved by |
 | --- | --- | --- |
-| `approval_status` | `pending` `approved` `rejected` | `approve()` / `reject()` only |
+| `approvalStatus` | `pending` `approved` `rejected` | `approve()` / `reject()` only |
 | `status` | `active` `paused` `archived` | `pause()` / `resume()` only |
 
 Approval commands never touch `status`. Pause/resume never touch
-`approval_status`. Rejection is **not terminal** — re-inviting a rejected
+`approvalStatus`. Rejection is **not terminal** — re-inviting a rejected
 enrollment resets approval to `pending`, and you may approve a previously
 rejected enrollment directly.
 
@@ -84,13 +84,15 @@ campaign, not a channel, and not a post.
 ### Deployment
 
 Execution truth. Launching a distribution fans it out into one deployment per
-planned slot per eligible enrollment, each with a stable `deployment_key` like
-`enroll_<id>:boomin:referral_link:primary`.
+(program × planned slot) — a **channel**, never a person — each with a stable
+`deploymentKey` like `program_<id>:boomin:referral_link:primary`. The adapter
+mints one promo link per approved partner beneath each partner-program channel;
+per-partner attribution rides on each performance event's `enrollment`.
 
 A deployment separates what you asked for from what the world reports back:
 
 - **desired** — `status`: `active` | `paused` | `canceled`
-- **observed** — `observed_status`: `pending` | `provisioning` | `live` |
+- **observed** — `observedStatus`: `pending` | `provisioning` | `live` |
   `paused` | `pending_review` | `rejected` | `failed` | `completed` | `unknown`
 
 ### Performance
@@ -119,7 +121,7 @@ This is the part worth reading twice. A brand can run partner distribution on
 The classic referral/affiliate rail. It needs no distribution at all.
 
 1. Create a program, invite partners (`enrollments.create`), approve them.
-2. Each approved enrollment gets a program `referral_code`.
+2. Each approved enrollment gets a program `referralCode`.
 3. Qualification requirements and tiers evaluate continuously from tracked
    activity.
 4. Rewards and payouts accrue against the program.
@@ -134,7 +136,7 @@ const enrollment = await boomin.enrollments.create({
   email: "creator@example.com",
 });
 await boomin.enrollments.approve(enrollment.id);
-// enrollment.referral_code is live. That is the whole rail.
+// enrollment.referralCode is live. That is the whole rail.
 ```
 
 ### Rail 2 — a distribution layered on top
@@ -144,11 +146,12 @@ partners.
 
 1. Create a distribution referencing one or more programs.
 2. Validate, then launch.
-3. Boomin creates **one deployment per eligible enrollment** — each with its
-   **own** attribution instrument, distinct from the program's evergreen
-   referral code.
-4. Conversions route by `deployment_id`, so two distributions sharing the same
-   enrollment credit separately.
+3. Boomin creates **one deployment per (program × slot)** — a shared channel
+   whose adapter mints one promo link per approved partner, distinct from the
+   program's evergreen referral code.
+4. Conversions route by deployment and carry their own `enrollment`, so two
+   distributions sharing the same program credit separately — each has its own
+   channel and links.
 5. A funded budget draws down as rewards are granted, and the unconsumed
    remainder is released when the distribution is canceled or completed.
 
@@ -168,7 +171,7 @@ const { operation } = await boomin.distributions.launch(distribution.id);
 | | Evergreen program | Distribution |
 | --- | --- | --- |
 | Lifecycle | Runs until paused/archived | `draft` → `ready` → `launching` → `active` → `completed` |
-| Attribution | One program referral code per enrollment | One instrument per **deployment** |
+| Attribution | One program referral code per enrollment | One promo link per partner per **deployment** |
 | Budget | None (rewards accrue) | Optional `metered` or `funded` reservation |
 | Measurement | Program metric events → qualification, rewards | Performance events → deployment/distribution rollups |
 | Pausing | Pause an enrollment | Pause the distribution or one deployment |
@@ -204,5 +207,5 @@ registry resolves an adapter — or rejects the combination up front with
 `channel_type_not_yet_supported` during `validate()`.
 
 Today exactly one adapter is registered: the Boomin partnership adapter, which
-supports `partner` / `referral` / `boomin` / `referral_link`. Everything else
-fails validation rather than failing at launch.
+supports `partner_program` / `referral` / `boomin` / `referral_link`. Everything
+else fails validation rather than failing at launch.

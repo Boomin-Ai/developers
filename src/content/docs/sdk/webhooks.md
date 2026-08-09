@@ -106,8 +106,8 @@ Zero-downtime rotation:
 
 ```js
 // 1. Rotate. Store the new secret alongside the old one.
-const { webhook_endpoint } = await boomin.webhooks.endpoints.rotateSecret("we_...");
-await secrets.put("BOOMIN_WEBHOOK_SECRET_NEXT", webhook_endpoint.secret);
+const endpoint = await boomin.webhooks.endpoints.rotateSecret("we_...");
+await secrets.put("BOOMIN_WEBHOOK_SECRET_NEXT", endpoint.secret);
 
 // 2. Verify against both for the length of the window.
 const event = await constructEvent(payload, sigHeader, [
@@ -213,9 +213,13 @@ delivery.
   "data": { },
   "operation": "op_...",
   "livemode": true,
-  "created_at": "2026-08-02T12:00:00.000Z"
+  "createdAt": "2026-08-02T12:00:00.000Z"
 }
 ```
+
+That is the shape `constructEvent` returns — it camelCases the delivery like
+every other SDK response (the raw wire body spells it `created_at`; pass
+`{ raw: true }` to keep it).
 
 The full public type vocabulary is listed on the
 [`events`](/sdk/resources/events/) page. Types outside that registry are

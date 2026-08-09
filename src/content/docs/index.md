@@ -51,8 +51,8 @@ qualification and tiers evaluate continuously, rewards accrue. That is a
 complete product on its own.
 
 **A distribution** layers a time-boxed, funded, measurable push on top of the
-same partners, with its own attribution instrument per deployment and its own
-budget drawdown.
+same partners, with its own promo link per partner on each deployment channel
+and its own budget drawdown.
 
 They compose. [Read the model →](/concepts/model/)
 

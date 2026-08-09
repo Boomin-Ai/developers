@@ -1,9 +1,9 @@
 ---
 title: Command Reference
-description: Every group and subcommand in @boomin/cli 0.4.0.
+description: Every group and subcommand in @boomin/cli 0.5.0.
 ---
 
-`@boomin/cli` **0.4.0**. Every command supports `-h` / `--help`, and most support
+`@boomin/cli` **0.5.0**. Every command supports `-h` / `--help`, and most support
 `--json` for machine-readable output.
 
 ```bash
@@ -189,8 +189,9 @@ npx @boomin/cli partnership end <pship_id>
 ```
 
 `get` prints the partnership followed by its enrollments. `pause` and `resume`
-report the deployment ids they moved. Needs `partnerships:read` /
-`partnerships:write`.
+report the promo-link codes they moved (`links_paused` / `links_resumed`) plus
+the channel ids those links live on — they never pause the shared deployment.
+Needs `partnerships:read` / `partnerships:write`.
 
 ### connection
 

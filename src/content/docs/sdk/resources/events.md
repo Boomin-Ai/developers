@@ -34,12 +34,13 @@ for await (const event of boomin.events.list({ startingAfter: lastSeenSeq })) {
   "data": { },
   "operation": "op_...",
   "livemode": true,
-  "created_at": "2026-08-02T12:00:00.000Z"
+  "createdAt": "2026-08-02T12:00:00.000Z"
 }
 ```
 
-Byte-for-byte the same shape a webhook delivers, so one handler serves both
-paths.
+The same shape a webhook delivers through `constructEvent`, so one handler
+serves both paths. (Raw wire deliveries spell it `created_at`; both
+`events.list` and `constructEvent` camelCase it for you.)
 
 `operation` is the operation that caused the event, or `null`. `subject.id` is
 the raw subject id.
@@ -69,7 +70,7 @@ for await (const event of boomin.events.list({ startingAfter: cursor })) {
 
 The registry **is** the exposure boundary — types not on this list never leave
 your organization, and they are not addressable as a `type` filter or as a
-webhook `enabled_events` entry.
+webhook `enabledEvents` entry.
 
 ### Distribution
 

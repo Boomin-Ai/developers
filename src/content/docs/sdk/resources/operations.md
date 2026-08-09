@@ -38,20 +38,23 @@ whether its own launch worked.
   "subject": { "type": "distribution", "id": "…" },
   "kind": "distribution.launch",
   "status": "succeeded",
-  "waiting_reason": null,
+  "waitingReason": null,
   "attempts": 1,
-  "max_attempts": 5,
+  "maxAttempts": 5,
   "error": null,
   "result": { },
   "progress": { },
-  "target_operation_id": null,
+  "targetOperationId": null,
   "livemode": true,
-  "created_at": "2026-08-01T00:00:00.000Z",
-  "completed_at": "2026-08-01T00:00:12.000Z"
+  "createdAt": "2026-08-01T00:00:00.000Z",
+  "completedAt": "2026-08-01T00:00:12.000Z"
 }
 ```
 
-`target_operation_id` is set on a cancel: it points at the operation being
+Raw HTTP responses use the snake_case spellings (`waiting_reason`,
+`created_at`); the SDK camelCases every response key.
+
+`targetOperationId` is set on a cancel: it points at the operation being
 superseded.
 
 ## Status
@@ -60,7 +63,7 @@ superseded.
 | --- | --- | --- |
 | `pending` | | Enqueued, not claimed |
 | `running` | | A worker holds the lease |
-| `waiting` | | Blocked on something nameable — see `waiting_reason` |
+| `waiting` | | Blocked on something nameable — see `waitingReason` |
 | `succeeded` | ✓ | Everything the operation set out to do happened |
 | `partial` | ✓ | Some children succeeded, some did not |
 | `failed` | ✓ | Nothing usable came out of it |
@@ -70,7 +73,7 @@ superseded.
 nine of twelve deployments is `partial`, and the distribution is
 `partially_active`. Treat it as "look at the deployments", not as a failure.
 
-## waiting_reason
+## waitingReason
 
 `waiting` always carries a reason — a null reason is structurally impossible.
 

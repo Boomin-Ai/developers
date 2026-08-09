@@ -437,16 +437,19 @@ try {
 {
   "object": "payout_run",
   "outcome": "no_eligible_activity",
-  "rules_evaluated": 3,
-  "splits_evaluated": 0,
-  "events_evaluated": 14,
-  "payouts_created": 0,
+  "rulesEvaluated": 3,
+  "splitsEvaluated": 0,
+  "eventsEvaluated": 14,
+  "payoutsCreated": 0,
   "underfunded": 0,
-  "awaiting_account": 0,
+  "awaitingAccount": 0,
   "payouts": [],
-  "summary": { "total_amount_minor": 0, "count": 0, "awaiting_account": 0, "bridged": 0, "unresolved_recipients": 0 }
+  "summary": { "totalAmountMinor": 0, "count": 0, "awaitingAccount": 0, "bridged": 0, "unresolvedRecipients": 0 }
 }
 ```
+
+(As the SDK returns it — raw HTTP spells these `rules_evaluated`,
+`total_amount_minor`, and so on.)
 
 Branch on `outcome` (`"payouts_created"` | `"no_eligible_activity"`), never on a
 count, and never on prose — there is no `warnings[]` array by design. The
@@ -458,11 +461,11 @@ propagates and exits non-zero, so a misconfigured brand fails loudly. A run that
 found nothing exits zero, because it worked.
 
 :::caution[`outcome` and `summary` count different things]
-`outcome`, `payouts_created` and `awaiting_account` describe **what this run
+`outcome`, `payoutsCreated` and `awaitingAccount` describe **what this run
 created**. `summary` describes **the period's ledger rows**, including ones
 earlier runs created. A re-run of an already-settled period can therefore report
 `"outcome": "no_eligible_activity"` beside a non-zero `summary.count`. Both are
-true; they are answering different questions. Use `payouts_created` for "did
+true; they are answering different questions. Use `payoutsCreated` for "did
 this run do anything".
 :::
 
