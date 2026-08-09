@@ -7,11 +7,13 @@ export default defineConfig({
     starlight({
       title: "Boomin Developers",
       description: "Programmable distribution infrastructure: partnerships, distributions, deployments, and performance through @boomin/sdk and the Platform API.",
+      // The real Boomin mark. What was here was the Starlight/Astro default
+      // triangle recoloured cyan + violet — same silhouette, never our logo.
       logo: {
-        src: "./src/assets/boomin-mark.svg",
+        src: "./src/assets/boomin-mark.png",
         alt: "Boomin"
       },
-      favicon: "/favicon.svg",
+      favicon: "/favicon.png",
       social: [
         { icon: "github", label: "Boomin", href: "https://boomin.ai" }
       ],

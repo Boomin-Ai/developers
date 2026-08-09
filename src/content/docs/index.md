@@ -6,7 +6,7 @@ hero:
   title: Programmable distribution infrastructure.
   tagline: Declare a business objective. Boomin fans it out across your partners, tracks what happened, and pays them. One SDK, one API, no provider plumbing.
   image:
-    file: ../../assets/boomin-mark.svg
+    file: ../../assets/boomin-mark.png
   actions:
     - text: Quickstart
       link: /quickstart/
