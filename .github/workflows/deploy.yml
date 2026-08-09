@@ -1,6 +1,21 @@
 name: Deploy Developers Docs
 
 on:
+  # Merging to main deploys. This was dispatch-only, which meant every merge
+  # looked shipped but wasn't — the site served 2026-07-10 content while four
+  # PRs sat merged and invisible, including a breaking-change note for a
+  # package that was already live on npm. Only paths that affect the built
+  # site trigger it, so a README tweak doesn't redeploy.
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "astro.config.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 permissions:
