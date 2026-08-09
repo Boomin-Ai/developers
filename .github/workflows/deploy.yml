@@ -21,6 +21,12 @@ on:
 permissions:
   contents: read
 
+# Two merges landing together must not race to publish; last writer wins and the
+# loser's content silently disappears.
+concurrency:
+  group: deploy-developers-prod
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -40,9 +46,28 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Plain wrangler via `npx --yes`, matching web's deploy-web.yml. Consent has
+      # to be a CLI flag: wrangler-action@v3 cannot install wrangler under node 24
+      # / npm 11 — its internal npx ignores NPM_CONFIG_YES and dies with
+      # "npx canceled due to missing packages and no YES option". It then silently
+      # falls back to an old wrangler, so the version you think you pinned is not
+      # the one that runs. web hit this and fixed it; this is the backport.
+      #
+      # --branch=main marks the upload as a PRODUCTION deployment. Without it a
+      # direct-upload deploy can land as a preview and never reach the domain.
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ed6e1910565216eb1092d34eeab7a52e
-          command: pages deploy dist --project-name boomin-developers
+        run: npx --yes wrangler@4.110.0 pages deploy dist --project-name=boomin-developers --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ed6e1910565216eb1092d34eeab7a52e
+
+      # The July→August gap was invisible because nothing ever asserted the site
+      # matched the repo. Probe a page that only exists in the v1 docs; soft, since
+      # CF's alias can take a few seconds to flip.
+      - name: Verify the deploy actually landed
+        continue-on-error: true
+        run: |
+          sleep 10
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://developers.boomin.ai/distributions/)
+          echo "GET /distributions/ -> $code"
+          test "$code" = "200" || echo "::warning::developers.boomin.ai is not serving the v1 docs yet"
