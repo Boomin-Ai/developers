@@ -33,7 +33,8 @@ The rails compose. Program activity outside any distribution stays on the progra
 - `Idempotency-Key` on every mutation, including DELETE.
 - Success bodies are BARE top-level objects — the resource itself, not `{"distribution": {...}}`.
 - Lists: `{"object":"list","data":[...],"has_more":boolean}`; `?limit=` 1-100 (default 20), `?starting_after=<id>`.
-- Ids are prefixed on output (`dist_`, `dep_`, `enr_`, `pship_`, `ptnr_`, `conn_`, `prog_`, `op_`, `evt_`, `perf_`, `po_`, `pob_`, `we_`) and accepted with or without the prefix.
+- Ids are prefixed on output (`dist_`, `dep_`, `enr_`, `rel_` relationship, `ent_` entity, `conn_`, `prog_`, `op_`, `evt_`, `perf_`, `po_`, `pob_`, `we_`) and accepted with or without the prefix.
+- Naming doctrine (RELATIONSHIP_CORE, 2026-08-15): `relationship` and `entity` are the canonical resource nouns. Canonical routes `/relationships/*` and `/entities/*` are mounted beside the legacy `/partnerships/*` and `/partners/*` (aliases, kept forever); legacy id prefixes `pship_`/`ptnr_` are accepted everywhere forever while responses emit `rel_`/`ent_`; legacy scopes `partnerships:*`/`partners:read` remain honored (canonical: `relationships:*`, `entities:read`); webhook subscriptions naming `partnership.*` still match the canonical `relationship.*` events. Emitted event types and `object:` discriminators are canonical: `relationship`, `entity`, `relationship.created|activated|paused|resumed|ended`, `program.standing_result|_run|_preview`, `program.standing`, and `POST /programs/{id}/standing_preview`.
 - Errors: `{"error":{"code","message","param","request_id"}}`. Branch on `code`, not on message or status alone.
 - Auth runs BEFORE id resolution: an unauthenticated probe is always 401, never 404.
 
