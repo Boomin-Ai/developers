@@ -85,15 +85,37 @@ webhook `enabledEvents` entry.
 `deployment.cancel_requested` · `deployment.canceled` ·
 `deployment.cleanup_failed`
 
-### Partnership
+### Relationship
 
-`partnership.created` · `partnership.activated` · `partnership.paused` ·
-`partnership.resumed` · `partnership.ended`
+`relationship.created` · `relationship.activated` · `relationship.paused` ·
+`relationship.resumed` · `relationship.ended`
+
+The canonical family (RELATIONSHIP_CORE naming). The legacy `partnership.*`
+spellings remain valid **subscription** entries forever — an endpoint
+subscribed to `partnership.paused` receives the canonical
+`relationship.paused` event — but new emissions and new subscriptions should
+use `relationship.*`.
 
 ### Enrollment
 
 `enrollment.created` · `enrollment.approved` · `enrollment.rejected` ·
-`enrollment.activated`
+`enrollment.activated` · `enrollment.qualified` · `enrollment.disqualified`
+
+`enrollment.qualified` / `enrollment.disqualified` are **standing
+transitions**, emitted exactly once per committed old→new change (entering the
+grace window emits nothing; falling from grace to `not_qualified` emits
+`disqualified`). The payload carries `previous_status` and the evaluation
+`trigger`. These fire from any cause — metric events, an
+[assertion](/sdk/resources/assertions/) changing, a capacity or
+[override](/sdk/resources/requirement-overrides/) change — so they are the one
+subscription that means "this member's earned access changed".
+
+### Assertion
+
+`assertion.created` · `assertion.revoked`
+
+Tenant-truth claims changing (an expiry-refresh is a new `assertion.created`).
+The payload carries the `entity` and the claim `key`.
 
 ### Payout
 

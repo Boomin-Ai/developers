@@ -90,7 +90,7 @@ The CLI turns that into a ready-to-run fix. The distribution surface uses:
 | `events:read` | The operational domain-event feed |
 | `webhooks:read` / `:write` | Delivery endpoints |
 | `payouts:read` / `:write` | Ledger, runs, exports |
-| `partners:read` | Reserved — see [`partners`](/sdk/resources/partners/) |
+| `entities:read` | Read entities — see [`entities`](/sdk/resources/entities/) |
 
 `operations:read` is granted to **every** valid token implicitly, so any key can
 poll the operations it caused without being widened.

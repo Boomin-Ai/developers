@@ -373,6 +373,117 @@ npx @boomin/cli events list [--type distribution.live] [--limit 50] [--starting-
 
 The operational feed out, ordered by `seq`. Needs `events:read`.
 
+## Relationship stack (0.7.0)
+
+The groups over the [relationship model](/concepts/model/): canonical
+`relationship` (with `partnership` as an alias forever),
+[assertions](/sdk/resources/assertions/),
+[operating types](/sdk/resources/operating-types/),
+[metric keys](/sdk/resources/metric-keys/), standing tests, and declarative
+`network apply`.
+
+### relationship
+
+```bash
+npx @boomin/cli relationship list [--status active]
+npx @boomin/cli relationship get rel_...
+npx @boomin/cli relationship pause|resume|end rel_...
+```
+
+Alias: `partnership` — same handler, canonical wire. Needs
+`relationships:read` / `relationships:write` (legacy `partnerships:*` honored).
+
+### assertion
+
+```bash
+npx @boomin/cli assertion assert --entity ent_... --key advisor_verified --value true [--expires-at 2027-01-01T00:00:00Z]
+npx @boomin/cli assertion assert --external-user-id user_42 --issuer yourapp.com --key advisor_verified --value true
+npx @boomin/cli assertion revoke --entity ent_... --key advisor_verified
+npx @boomin/cli assertion list --entity ent_... [--include-expired]
+```
+
+Claim-addressed — always subject + `--key`, never an `asrt_` event id. `--value`
+takes `true`, `false`, or a number. Needs `assertions:write` / `assertions:read`.
+
+### operating-type
+
+```bash
+npx @boomin/cli operating-type create advisor --name "Advisor"
+npx @boomin/cli operating-type list [--status archived]
+npx @boomin/cli operating-type update advisor --status active   # reactivation
+npx @boomin/cli operating-type archive advisor
+npx @boomin/cli enrollment set-type enr_... --type advisor      # or --clear
+```
+
+Keys are never recycled — archive, then reactivate the same row. Needs
+`operating_types:*`; `set-type` needs `enrollments:write`.
+
+### metric
+
+```bash
+npx @boomin/cli metric register x:demo_submitted --display-name "Demos submitted"
+npx @boomin/cli metric list
+npx @boomin/cli metric archive x:demo_submitted
+```
+
+Registers tenant `x:` keys — standing and reward config open up; payout stays
+built-ins-only in v1. Needs `metric_keys:*`.
+
+### standing test
+
+```bash
+npx @boomin/cli standing test --program prog_...
+npx @boomin/cli standing test --program prog_... --enrollment enr_... \
+  --assert advisor_verified=true --operating-type advisor
+```
+
+Read-only, `programs:read`, persists nothing. With `--enrollment` it renders
+one member's pass/fail, provenance (`met`/`failed` by metric key), and every
+assertion the evaluation saw; `--assert key=value` (repeatable, `null` values
+simulate absence) and `--operating-type` (or `null`) overlay what-ifs.
+
+### enrollment overrides
+
+```bash
+npx @boomin/cli enrollment overrides list enr_...
+npx @boomin/cli enrollment overrides set enr_... --requirement <uuid> --threshold 500
+npx @boomin/cli enrollment overrides disable enr_... --requirement <uuid>
+npx @boomin/cli enrollment overrides add enr_... --metric-key x:demo_submitted --scope program_maintenance --operator gte --threshold 1
+npx @boomin/cli enrollment overrides clear enr_... --override ovr_...
+```
+
+Negotiated per-member terms. Needs `requirement_overrides:*`.
+
+### network apply
+
+```bash
+npx @boomin/cli network apply network.json --dry-run
+npx @boomin/cli network apply network.json
+```
+
+Declarative restructuring: one JSON file declares `program`, `settings`,
+`operating_types`, `metric_keys`, `tiers`, and `requirements`; the CLI diffs
+it against live state by stable keys and applies creates, updates, and
+archives. `--dry-run` prints the plan and exits. It **never deletes** — rows
+absent from the file are archived — vocabulary lands before the policy naming
+it, and each change re-evaluates standing server-side in order. Money-rule
+sections (`payout_rules`, `reward_rules`) fail the diff loudly in v1; use the
+imperative payout commands instead.
+
+```json
+{
+  "program": "prog_...",
+  "operating_types": [{ "key": "advisor", "name": "Advisor" }],
+  "metric_keys": [{ "key": "x:demo_submitted" }],
+  "requirements": [
+    { "metric_key": "assert:advisor_verified", "scope": "program_maintenance",
+      "operator": "exists", "operating_type": "advisor", "failure_policy": "immediate" },
+    { "metric_key": "gmv_cents", "scope": "program_maintenance",
+      "operator": "gte", "threshold": 100000, "window_days": 90 }
+  ]
+}
+```
+
 ## Missing a scope?
 
 When a command fails on scope, the CLI prints the typed code, the required

@@ -1,20 +1,27 @@
 # Boomin Developers
 
-Boomin is programmable distribution infrastructure. Docs: https://developers.boomin.ai
+Boomin is a programmable relationship engine; distribution runs over those relationships. Docs: https://developers.boomin.ai
 
 ## The model
 
-Six nouns plus an Operation.
+Six nouns plus an Operation. The first three are THE RELATIONSHIP STACK — two peers (your brand, an entity) and the durable bond between them; both peers stay thin, the relationship carries the richness.
 
-- Partner — a durable identity capable of distributing value (creator, affiliate, agency, brand).
-- Partnership — the durable brand<->partner relationship. Exactly one per (brand, partner). Program-independent.
-- Enrollment — a partnership's participation in ONE program. Carries the program `referral_code`.
+- Entity — a durable identity you have relationships with (creator, affiliate, advisor, agency, company). Canonical name; "partner" is the legacy spelling, aliased forever.
+- Relationship — the durable brand<->entity bond. Exactly one per (brand, entity). Program-independent. Canonical name; "partnership" is the legacy spelling, aliased forever.
+- Enrollment — a relationship's participation in ONE program. Carries the program `referral_code`, an optional operating type (capacity), and per-member requirement overrides.
 - Distribution — INTENT: a coordinated objective. Never an execution mode. No kind column, no program column.
 - Deployment — EXECUTION: one concrete thing running somewhere. Stable `deployment_key`.
 - Performance — MEASUREMENT, always recorded against a deployment.
 - Operation — durable async work returned by EVERY external mutation.
 
 A Distribution is Boomin's PaymentIntent: declare the objective, Boomin fans it out into Deployments and reports back what actually happened.
+
+The relationship-stack primitives (RELATIONSHIP_CORE):
+- Assertion — TENANT TRUTH, claim-addressed by (subject, key): your backend computes a private condition and asserts only the outcome (`assertions.create`/`revoke`; subject = `entity` OR `external_user_id`+`issuer`, the pair signed handoffs bind). Requirements gate on it via `metric_key: "assert:<key>"`; revocation/expiry re-evaluates standing (default failure_policy for assert: gates is IMMEDIATE, others grace). Boomin never sees the underlying data.
+- Operating type — CAPACITY vocabulary per brand (`advisor`, `reseller`, ...): typed requirements / reward rules / payout rules apply ONLY to enrollments operating as that type. Set via `enrollments.update({operatingType})`, CLI `enrollment set-type`, or the signed handoff payload's `operatingType` (lenient: unknown/archived keys skipped). Keys are NEVER recycled — archive then reactivate the same row.
+- Requirement override — negotiated per-enrollment terms: PATCH a program requirement (named fields replace, absent inherit), DISABLE it, or ADD a member-only requirement. Effective policy = program ∘ operating type ∘ enrollment. One active patch per (enrollment, requirement); inapplicable patches (capacity-scoped away) are refused 409, not stored.
+- Metric key — tenant fact vocabulary: register `x:`-namespaced keys by API (`metric_keys`). VOCABULARY != CAPABILITY: standing accepts built-ins ∪ active x: ∪ assert:, reward accepts built-ins ∪ active x:, payout accepts BUILT-INS ONLY in v1, ingestion is permissive (the data plane was always key-generic). Keys never recycled; `x:` can never collide with a future built-in.
+- Standing preview — `POST /programs/{id}/standing_preview` (programs:read, persists NOTHING): whole-program shape with override provenance, or `{enrollment}` for one member's would-be vs stored status, or `{enrollment, simulate:{assertions:{k:v|null}, operating_type:key|null}}` for what-ifs through the evaluator's exact read half. CLI: `boomin standing test`.
 
 ## Two rails
 
@@ -33,8 +40,17 @@ The rails compose. Program activity outside any distribution stays on the progra
 - `Idempotency-Key` on every mutation, including DELETE.
 - Success bodies are BARE top-level objects — the resource itself, not `{"distribution": {...}}`.
 - Lists: `{"object":"list","data":[...],"has_more":boolean}`; `?limit=` 1-100 (default 20), `?starting_after=<id>`.
-- Ids are prefixed on output (`dist_`, `dep_`, `enr_`, `rel_` relationship, `ent_` entity, `conn_`, `prog_`, `op_`, `evt_`, `perf_`, `po_`, `pob_`, `we_`) and accepted with or without the prefix.
+- Ids are prefixed on output (`dist_`, `dep_`, `enr_`, `rel_` relationship, `ent_` entity, `asrt_` assertion event, `otype_` operating type, `ovr_` requirement override, `mkey_` metric key, `conn_`, `prog_`, `op_`, `evt_`, `perf_`, `po_`, `pob_`, `we_`) and accepted with or without the prefix.
 - Naming doctrine (RELATIONSHIP_CORE, 2026-08-15): `relationship` and `entity` are the canonical resource nouns. Canonical routes `/relationships/*` and `/entities/*` are mounted beside the legacy `/partnerships/*` and `/partners/*` (aliases, kept forever); legacy id prefixes `pship_`/`ptnr_` are accepted everywhere forever while responses emit `rel_`/`ent_`; legacy scopes `partnerships:*`/`partners:read` remain honored (canonical: `relationships:*`, `entities:read`); webhook subscriptions naming `partnership.*` still match the canonical `relationship.*` events. Emitted event types and `object:` discriminators are canonical: `relationship`, `entity`, `relationship.created|activated|paused|resumed|ended`, `program.standing_result|_run|_preview`, `program.standing`, and `POST /programs/{id}/standing_preview`.
+- Deprecation table (aliases NEVER removed; new code uses the canonical column):
+
+  | Deprecated | Canonical |
+  | --- | --- |
+  | `/partners/*` routes, `ptnr_` ids, `partners:read` scope, `boomin.partners`, type `Partner` | `/entities/*`, `ent_`, `entities:read`, `boomin.entities`, `Entity` |
+  | `/partnerships/*` routes, `pship_` ids, `partnerships:*` scopes, `boomin.partnerships`, type `Partnership` | `/relationships/*`, `rel_`, `relationships:*`, `boomin.relationships`, `Relationship` |
+  | `partnership.*` webhook subscriptions | `relationship.*` events (old subscriptions still receive them) |
+  | `getPartnerStanding` (@boomin/server), `boomin_get_partner_standing` / `boomin_preview_qualification` (MCP), CLI group `partnership` | `getStanding`, `boomin_get_standing` / `boomin_preview_standing`, CLI group `relationship` |
+  | `/sdk/resources/partners` + `/sdk/resources/partnerships` doc URLs | 301 -> `/sdk/resources/entities/` + `/sdk/resources/relationships/` |
 - Errors: `{"error":{"code","message","param","request_id"}}`. Branch on `code`, not on message or status alone.
 - Auth runs BEFORE id resolution: an unauthenticated probe is always 401, never 404.
 
@@ -52,11 +68,14 @@ import Boomin from "@boomin/sdk";
 const boomin = new Boomin(process.env.BOOMIN_SECRET_KEY);
 ```
 
-Twelve resource clients (`payouts` carries three nested ones):
-- `programs` — retrieve, list + nested `requirements`, `tiers`, `connectConfig`, `handoffConfig`
-- `partners` — retrieve, list (NOTE: no `/v1/platform/partners` routes in this release; read partner identity off `partnerships`)
-- `partnerships` — list, retrieve, pause, resume, end, updatePermissions
-- `enrollments` — create (invite), retrieve, list, approve, reject, pause, resume
+Fifteen resource clients (`payouts` carries three nested ones):
+- `programs` — create, retrieve, update, list, standingPreview + nested `requirements`, `tiers`, `connectConfig`, `handoffConfig`
+- `entities` — retrieve, list (canonical; deprecated `partners` getter delegates here)
+- `relationships` — list, retrieve, pause, resume, end, updatePermissions (canonical; deprecated `partnerships` getter delegates here)
+- `assertions` — create (assert), revoke (claim-addressed — never by asrt_ id), list, retrieveEvent. No del: events are immutable history.
+- `operatingTypes` — create, retrieve (by otype_ id OR key), update (reactivation lives here), list, archive
+- `metricKeys` — create (x:-namespaced), retrieve (mkey_ id, x: key, or a built-in), update, list (built-ins flagged `builtin: true`), archive
+- `enrollments` — create (invite), retrieve, list, approve, reject, pause, resume, update (set/clear `operatingType`) + nested `requirementOverrides` (create/retrieve/update/list/del)
 - `distributions` — create, retrieve, update, list, validate, launch, pause, resume, cancel
 - `deployments` — retrieve, list (the pause/resume/cancel ROUTES are live; SDK methods are not)
 - `connections` — list, retrieve, revoke
@@ -70,7 +89,6 @@ Twelve resource clients (`payouts` carries three nested ones):
 - `payouts.batches` — create, retrieve, list, export, confirm, cancel
 
 `resume` is the canonical verb on every surface — never `unpause`.
-`programs.create` and `programs.update` exist on the client but have no route in this release; create programs from the CLI or the app.
 
 ## Golden path
 
@@ -107,8 +125,12 @@ Twelve resource clients (`payouts` carries three nested ones):
 - Pausing does NOT dodge billing — links keep resolving. `partnership.end` or enrollment archive is the billing exit.
 - A funded launch that outruns the wallet parks the operation at `status:"waiting"`, `waiting_reason:"funding_required"`. Relaunching REUSES that waiting operation.
 - One live mutation per subject: a second launch/resume raises `operation_conflict` (409). Cancel runs on a separate control plane, so it can cancel a running launch.
-- SDK 1.0.0-beta.2 speaks camelCase in BOTH directions: request bodies and query params convert to snake_case going out, responses convert to camelCase coming back (`download_url` -> `downloadUrl`). Already-snake keys you send pass through untouched. Sending both spellings of one field throws `conflicting_parameters`.
-- Customer-owned blobs are NEVER renamed at any depth: `spec`, `stats`, `desired_state`, `observed_state`, `external_ids`, `metadata`, `permissions`, `properties`, and a payout rail's `config.columns`.
+- SDK 1.0.0-beta.5 speaks camelCase in BOTH directions: request bodies and query params convert to snake_case going out, responses convert to camelCase coming back (`download_url` -> `downloadUrl`). Already-snake keys you send pass through untouched. Sending both spellings of one field throws `conflicting_parameters`.
+- Customer-owned blobs are NEVER renamed at any depth: `spec`, `stats`, `desired_state`, `observed_state`, `external_ids`, `metadata`, `permissions`, `properties`, a payout rail's `config.columns`, and a standing preview's `simulate.assertions` claim keys (renaming a claim key would simulate a DIFFERENT claim).
+- Assertions are CLAIM-addressed: assert/revoke by (subject, key), never by `asrt_` event id. Re-asserting with a fresh `expires_at` EXTENDS the claim. 201 = changed, 200 = already in that state. Every change re-evaluates standing; transitions emit `enrollment.qualified` / `enrollment.disqualified` exactly once per committed change.
+- `assert:` requirements default to `failure_policy: immediate` (hard invalidation — "no longer verified" must not linger); everything else defaults to `grace`. Override per requirement or per enrollment.
+- Config surfaces refuse metric keys their rail cannot execute with `metric_key_invalid` (400) and the precise reason (register it / reactivate it / excluded from payout v1). Payout rules are BUILT-INS ONLY in v1 — the DB CHECK agrees with the API.
+- Operating-type, metric-key (and their vocabulary) keys are NEVER recycled: archive = cannot newly assign/configure; create-with-archived-key answers 409 pointing at reactivation; reactivation flips the SAME row.
 - PAYOUTS: no rail is auto-created — exporting without one is typed `payout_rail_required` (409). A CSV format is not neutral (PayPal != Wise) and the column mapping decides what a bank reads.
 - PAYOUTS: a rule's economics are IMMUTABLE after creation. Only `name` and `status` change; anything else answers `immutable_parameter` (400) naming the frozen CONCEPT. The payouts ledger references the rule, so editing a rate would re-interpret settled history. To change money: create a replacement rule, activate it, archive the old one.
 - PAYOUTS: rules are ARCHIVED, never deleted — `POST /payouts/rules/{id}/archive`, `payouts.rules.archive(id)`. No DELETE exists because `payouts.rule_id` cascades and would take ledger rows with it.
@@ -130,8 +152,8 @@ Exactly one adapter is registered today: the Boomin partnership adapter, support
 ## Other surfaces
 
 - Browser SDK: `@boomin/connect` — Partner Connect (OTP join, Instagram connect, approval status). Uses public `pk_live_...` keys.
-- Signed Handoff (`@boomin/server`, maintenance only) lets already-logged-in app users join without a second OTP.
-- CLI: `@boomin/cli` 0.4.0. Setup: `login`, `init`, `doctor`, `status`, `logout`, `scopes`, `token`, `platform smoke`, `referral init`, `handoff init|provision`, `mcp install`, `skill install`. Platform v1 groups: `distribution`, `enrollment`, `partnership`, `connection`, `payout` (with sub-groups `rules`, `rails`, `batches`), `webhook`, `events`. Operation-returning commands poll to terminal by default; `--no-wait` skips.
+- Server helpers: `@boomin/server` 0.2.0 — Signed Handoff (`postHandoff`, payload may carry `operatingType`), `getStanding` (alias-forever `getPartnerStanding`), `assert`/`revokeAssertion` (platform sk_ key, claim-addressed by externalUserId+issuer), `recordConversion` (referral-code-addressed gmv, idempotent on your `eventId`).
+- CLI: `@boomin/cli` 0.7.0. Setup: `login`, `init`, `doctor`, `status`, `logout`, `scopes`, `token`, `platform smoke`, `referral init`, `handoff init|provision`, `mcp install`, `skill install`. Platform v1 groups: `program`, `distribution`, `enrollment` (incl. `set-type`, `overrides list|set|add|disable|clear`), `relationship` (alias `partnership`), `assertion assert|revoke|list`, `operating-type`, `metric register|list|get|update|archive`, `standing test` (simulate flags `--assert key=value` repeatable, `--operating-type`), `network apply <file.json> [--dry-run]` (declarative restructuring: stable-key diff, never deletes — absent rows are archived; money rules fail the diff in v1), `connection`, `payout` (with sub-groups `rules`, `rails`, `batches`), `webhook`, `events`. Operation-returning commands poll to terminal by default; `--no-wait` skips.
 - MCP hosted install: `npx @boomin/cli@latest mcp install` or `claude mcp add --transport http boomin https://mcp.boomin.ai/mcp`
 - Partner Connect API: https://api.boomin.ai/v1/connect
 - Public Discover feed (unauthenticated, listed programs only): GET https://api.boomin.ai/v1/connect/discover
@@ -141,8 +163,8 @@ Exactly one adapter is registered today: the Boomin partnership adapter, support
 ## Deprecated
 
 - `boominjs` — DEPRECATED. Use `@boomin/sdk` for the Platform API, or `@boomin/connect` for browser Partner Connect.
-- `@boomin/server` — MAINTENANCE ONLY. Still used by the generated Signed Handoff routes; new server integrations use `@boomin/sdk`.
 - "Creator Connect" is the old name for Partner Connect. Old `/creator-connect/*` doc paths 301 to `/partner-connect/*`.
+- "partner"/"partnership" are the old names for entity/relationship — see the deprecation table above. Old doc paths `/sdk/resources/partners` and `/sdk/resources/partnerships` 301 to `/sdk/resources/entities/` and `/sdk/resources/relationships/`.
 
 ## Keys
 
@@ -157,8 +179,14 @@ Billed on monthly ACTIVE partners: approved AND at least one tracked event that 
 ## Key docs
 
 - Quickstart: https://developers.boomin.ai/quickstart/
-- The distribution model: https://developers.boomin.ai/concepts/model/
+- The relationship model: https://developers.boomin.ai/concepts/model/
 - Authentication: https://developers.boomin.ai/concepts/authentication/
+- SDK entities: https://developers.boomin.ai/sdk/resources/entities/
+- SDK relationships: https://developers.boomin.ai/sdk/resources/relationships/
+- SDK assertions: https://developers.boomin.ai/sdk/resources/assertions/
+- SDK operatingTypes: https://developers.boomin.ai/sdk/resources/operating-types/
+- SDK enrollments.requirementOverrides: https://developers.boomin.ai/sdk/resources/requirement-overrides/
+- SDK metricKeys: https://developers.boomin.ai/sdk/resources/metric-keys/
 - SDK install & client: https://developers.boomin.ai/sdk/
 - Errors: https://developers.boomin.ai/sdk/errors/
 - Receiving webhooks: https://developers.boomin.ai/sdk/webhooks/

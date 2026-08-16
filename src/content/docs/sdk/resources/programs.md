@@ -87,18 +87,32 @@ the response) and re-evaluates the program.
 | `windowDays` | Rolling window; `null` = lifetime |
 | `weight` | Integer weight in the score |
 | `required` | `true` = a hard gate; `false` = contributes to the score |
+| `operatingType` | Optional [capacity](/sdk/resources/operating-types/) key/id — the requirement applies only to enrollments operating as that type |
+| `failurePolicy` | `grace` or `immediate`; `null` = the surface default (`immediate` for `assert:` keys, `grace` otherwise) |
 | `status` | `active` `paused` `archived` |
 
 ### Metric vocabulary
 
-`followers`, `views`, `post_count`, `collab_posts`, `link_clicks`,
-`referral_count`, `gmv_cents`, `sales_count`, `product_usage_count`,
-`channel_connected`, `manual_approval`, `event_registration`,
-`template_install`.
+Three namespaces, and the standing surface accepts all three:
 
-A `metricKey` outside this set is rejected with `invalid_request`. The
-vocabulary is closed on purpose — a requirement that cannot be measured is not a
-requirement.
+- **Built-ins** — `followers`, `views`, `post_count`, `collab_posts`,
+  `link_clicks`, `referral_count`, `gmv_cents`, `sales_count`,
+  `product_usage_count`, `channel_connected`, `manual_approval`,
+  `event_registration`, `template_install`.
+- **Tenant keys** — `x:`-namespaced, registered by API call:
+  [`metricKeys`](/sdk/resources/metric-keys/). An unregistered or archived
+  `x:` key is refused with `metric_key_invalid` and the precise reason.
+- **Assertion claims** — `assert:<key>` gates standing on
+  [tenant truth](/sdk/resources/assertions/) (`assert:advisor_verified` with
+  `operator: "exists"`).
+
+Which namespaces each surface accepts differs on purpose — reward rules take
+built-ins ∪ `x:`, payout rules stay built-ins-only in v1. The
+[vocabulary ≠ capability table](/sdk/resources/metric-keys/#vocabulary--capability)
+is the reference.
+
+Per-enrollment adjustments to any requirement live on
+[`enrollments.requirementOverrides`](/sdk/resources/requirement-overrides/).
 
 ## programs.tiers
 
@@ -173,3 +187,47 @@ configs (filter with `?issuer=`). `update` is create-or-update **per issuer**:
 omit `signingSecret` on first call and Boomin mints an `hs_boomin_live_...`
 secret, returned in that response only. Pass `signingSecret` explicitly to
 rotate it.
+
+## programs.standingPreview
+
+Read-only standing — `programs:read`, and it **persists nothing**: no state,
+no run row, no events.
+
+```js
+// The whole-program reporting shape:
+const preview = await boomin.programs.standingPreview("prog_...");
+// counts, requirements, tiers, enrollments with override provenance
+
+// One member's pass/fail through the evaluator's exact read half:
+const targeted = await boomin.programs.standingPreview("prog_...", {
+  enrollment: "enr_...",
+});
+
+// What-ifs — simulate claims and capacity before committing them:
+const simulated = await boomin.programs.standingPreview("prog_...", {
+  enrollment: "enr_...",
+  simulate: {
+    assertions: { advisor_verified: true },  // null = simulate absence
+    operatingType: "advisor",                // null = simulate untyped
+  },
+});
+```
+
+| Method | Route | Scope |
+| --- | --- | --- |
+| `standingPreview(id, params, options)` | `POST /programs/{id}/standing_preview` | `programs:read` |
+
+The targeted response's `enrollment` carries the **would-be** `status` next to
+`storedStatus` (what the ledger currently says), `met`/`failed` as
+`{ requirement, metricKey, scope }` entries, the effective `operatingType`,
+and every assertion claim the evaluation saw — simulated overlays flagged
+`simulated: true`. Simulation runs through the evaluator's exact read half, so
+what the preview says is what a real evaluation would decide.
+
+`simulate` requires `enrollment` — a what-if is asked of one member's
+standing. The CLI wraps this as `boomin standing test`:
+
+```bash
+npx @boomin/cli standing test --program prog_... --enrollment enr_... \
+  --assert advisor_verified=true --operating-type advisor
+```

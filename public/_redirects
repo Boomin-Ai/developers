@@ -24,6 +24,13 @@
 /sdk/resources                   /sdk/                             301
 /sdk/resources/                  /sdk/                             301
 
+# RELATIONSHIP_CORE naming: partners/partnerships -> entities/relationships
+# (same proven pattern as creator->partner above; old URLs redirect forever)
+/sdk/resources/partners          /sdk/resources/entities/          301
+/sdk/resources/partners/         /sdk/resources/entities/          301
+/sdk/resources/partnerships      /sdk/resources/relationships/     301
+/sdk/resources/partnerships/     /sdk/resources/relationships/     301
+
 # OpenAPI + docs prefix
 /api                             /api/connect/                     302
 /openapi/creator-connect.yaml    /openapi/connect.yaml             301

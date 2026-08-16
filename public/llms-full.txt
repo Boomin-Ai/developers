@@ -11,17 +11,37 @@ Docs: https://developers.boomin.ai
 ## Canonical model
 
 ```
-Partner            durable identity capable of distributing value
-  Partnership      durable brand<->partner relationship (program-independent)
-    Enrollment     that partnership's participation in ONE program
+Entity             durable identity you have relationships with
+  Relationship     durable brand<->entity bond (program-independent)
+    Enrollment     that relationship's participation in ONE program
+      + operating type   — the CAPACITY the entity acts in (advisor, reseller, ...)
+      + requirement      — negotiated per-member terms (patch/disable/add)
+        overrides
+    Assertions     tenant truth — claim-addressed facts YOUR backend states
+                   about the entity, without handing Boomin the underlying data
 
 Distribution       intent — a coordinated objective. NEVER an execution mode.
   Deployment       execution — one concrete thing running somewhere
     Performance    measurement, recorded against the deployment
 
 Operation          durable async work for EVERY external mutation
-Connection         provider identity (owner: partner XOR brand) + per-partnership grants
+Connection         provider identity (owner: entity XOR brand) + per-relationship grants
 ```
+
+Canonical naming (RELATIONSHIP_CORE): `entity` and `relationship` replaced
+"partner" and "partnership". The legacy spellings are aliases FOREVER — routes
+(`/partners`, `/partnerships`), id prefixes (`ptnr_`, `pship_`), scopes
+(`partners:read`, `partnerships:*`), SDK getters (`boomin.partners`,
+`boomin.partnerships`), and `partnership.*` webhook subscriptions all keep
+working; responses emit `ent_`/`rel_` and `object: "entity"|"relationship"`.
+New id prefixes: `asrt_` (assertion event), `otype_` (operating type), `ovr_`
+(requirement override), `mkey_` (metric key). The relationship-stack detail —
+assertions, operating types, requirement overrides, tenant `x:` metric keys,
+standing preview with simulation — is in https://developers.boomin.ai/llms.txt
+and the resource pages
+(/sdk/resources/entities/, /sdk/resources/relationships/,
+/sdk/resources/assertions/, /sdk/resources/operating-types/,
+/sdk/resources/requirement-overrides/, /sdk/resources/metric-keys/).
 
 A Distribution is Boomin's PaymentIntent: declare the objective, Boomin fans it
 out into Deployments and reports back what actually happened.
@@ -384,8 +404,9 @@ leave the org and are not addressable as a filter or a webhook subscription:
 
 - distribution.launching, .live, .paused, .resumed, .completed, .failed, .canceled
 - deployment.created, .activated, .rejected, .paused, .completed, .drifted, .cancel_requested, .canceled, .cleanup_failed
-- partnership.created, .activated, .paused, .resumed, .ended
-- enrollment.created, .approved, .rejected, .activated
+- relationship.created, .activated, .paused, .resumed, .ended (canonical; legacy partnership.* subscriptions still receive them)
+- enrollment.created, .approved, .rejected, .activated, .qualified, .disqualified (qualified/disqualified = standing transitions, emitted exactly once per committed change with previous_status + trigger in the payload)
+- assertion.created, .revoked (tenant-truth claims changing; an expiry refresh is a new assertion.created)
 - payout.created, .settled, .failed
 - operation.succeeded, .failed, .cancel_requested, .canceled, .superseded
 - budget.reserved, .released, .reserve_failed
@@ -994,18 +1015,30 @@ Programs requiring Instagram return referral data plus
 `programs.requirements` fields: `scope` (program_entry | program_maintenance |
 tier | campaign | benefit | invite), `scope_id`, `metric_key`, `operator`
 (gte | lte | eq | neq | exists), `threshold`, `window_days` (null = lifetime),
-`source`, `weight`, `required`, `status` (active | paused | archived).
+`source`, `weight`, `required`, `operating_type` (typed requirements apply
+only to enrollments operating as that capacity), `failure_policy` (grace |
+immediate; null = surface default: immediate for assert: keys, grace
+otherwise), `status` (active | paused | archived).
 
-Closed metric vocabulary: `followers`, `views`, `post_count`, `collab_posts`,
-`link_clicks`, `referral_count`, `gmv_cents`, `sales_count`,
-`product_usage_count`, `channel_connected`, `manual_approval`,
-`event_registration`, `template_install`. Anything else is `invalid_request`.
+Metric vocabulary — three namespaces on the standing surface:
+built-ins (`followers`, `views`, `post_count`, `collab_posts`, `link_clicks`,
+`referral_count`, `gmv_cents`, `sales_count`, `product_usage_count`,
+`channel_connected`, `manual_approval`, `event_registration`,
+`template_install`), tenant `x:` keys (registered via `/metric_keys`;
+unregistered/archived answers `metric_key_invalid` with the reason), and
+`assert:<key>` claims. VOCABULARY != CAPABILITY: reward rules accept built-ins
+∪ active x:, payout rules accept BUILT-INS ONLY in v1, ingestion is permissive.
+
+Per-enrollment adjustments: `/enrollments/{id}/requirement_overrides` — PATCH
+(named fields replace), DISABLE, or ADD a member-only requirement. Read-only
+what-ifs: `POST /programs/{id}/standing_preview` with `{enrollment,
+simulate:{assertions, operating_type}}` — persists nothing.
 
 Deleting a requirement ARCHIVES it and re-evaluates the program.
 `programs.tiers` are keyed by `rank` — creating at an existing rank upserts;
 lists come back ordered by ascending rank.
 
-## CLI 0.4.0
+## CLI 0.7.0
 
 Setup: `login`, `logout`, `status`, `doctor`, `init`.
 Keys: `token create|list|revoke|rotate`, `scopes`, `scopes explain <scope>`.
@@ -1016,8 +1049,13 @@ Platform v1 groups over the live REST tree:
 
 ```bash
 npx @boomin/cli distribution create|list|get|validate|launch|pause|resume|cancel
-npx @boomin/cli enrollment invite|approve|reject|list|get
-npx @boomin/cli partnership list|get|pause|resume|end
+npx @boomin/cli enrollment invite|approve|reject|list|get|set-type|overrides
+npx @boomin/cli relationship list|get|pause|resume|end      # alias: partnership
+npx @boomin/cli assertion assert|revoke|list
+npx @boomin/cli operating-type create|list|get|update|archive
+npx @boomin/cli metric register|list|get|update|archive
+npx @boomin/cli standing test --program prog_... [--enrollment enr_...] [--assert key=value ...] [--operating-type key]
+npx @boomin/cli network apply <file.json> [--dry-run]
 npx @boomin/cli connection list|get|revoke
 npx @boomin/cli payout list|run|export|connect
 npx @boomin/cli payout rules list|create|show|update|archive
@@ -1026,6 +1064,12 @@ npx @boomin/cli payout batches list|show|create|export|confirm|cancel
 npx @boomin/cli webhook create|list|delete|rotate-secret
 npx @boomin/cli events list --type <event.type>
 ```
+
+`network apply` is declarative restructuring: one JSON file declares program
+settings, operating types, metric keys, tiers, and requirements; the CLI diffs
+by stable keys and applies creates/updates/archives. It NEVER deletes (absent
+rows are archived), vocabulary lands before the policy naming it, and money
+rules fail the diff in v1.
 
 Operation-returning commands (launch/pause/resume/cancel) POLL THE OPERATION TO A
 TERMINAL STATUS BY DEFAULT; `--no-wait` returns the 202 immediately.
@@ -1139,8 +1183,10 @@ job cannot also redirect where the money lands. For the same reason
 `GET /payouts/connect_status` (a `payouts:read` surface) reports rail identity
 and state but NEVER `config` — read config from `GET /payouts/rails`.
 
-Relationships: `partnerships:read|write`, `enrollments:read|write`,
-`connections:read|write`, `partners:read`.
+Relationships: `relationships:read|write` (legacy alias `partnerships:*`),
+`entities:read` (legacy alias `partners:read`), `enrollments:read|write`,
+`connections:read|write`, `assertions:read|write`, `operating_types:read|write`,
+`metric_keys:read|write`, `requirement_overrides:read|write`.
 
 Programs: `programs:read|create|update|delete`,
 `program_requirements:read|write`, `program_tiers:read|write`,
@@ -1192,9 +1238,10 @@ resolving under both, so pausing never dodges fees. Archive or
 ## Deprecated
 
 - `boominjs` — DEPRECATED. Use `@boomin/sdk` for the Platform API, or `@boomin/connect` for browser Partner Connect.
-- `@boomin/server` — MAINTENANCE ONLY, for the generated Signed Handoff routes.
 - "Creator Connect" is the former name of Partner Connect. Old `/creator-connect/*` doc paths 301 to `/partner-connect/*`.
-- The pre-v1 RPC routes under `/v1/platform` remain functional for CLI 0.2.0, MCP, and existing integrations. New work uses the REST tree and `@boomin/sdk`.
+- "partner"/"partnership" are the former names of entity/relationship (RELATIONSHIP_CORE) — aliased forever on routes, ids, scopes, SDK getters, and webhook subscriptions; old doc paths 301 to `/sdk/resources/entities/` and `/sdk/resources/relationships/`.
+- The pre-v1 RPC routes under `/v1/platform` remain functional for old CLI versions, MCP, and existing integrations. New work uses the REST tree and `@boomin/sdk`.
+- `@boomin/server` is CURRENT again as of 0.2.0 — Signed Handoff plus `assert`/`revokeAssertion`/`recordConversion`/`getStanding` tenant-side helpers.
 
 ## OpenAPI
 

@@ -64,16 +64,26 @@ See [Getting partners paid](/payouts/#scopes).
 
 | Scope | Purpose |
 | --- | --- |
-| `partnerships:read` | Read durable brand ↔ partner relationships. |
-| `partnerships:write` | Pause, resume, end, and update partnership permissions. |
+| `relationships:read` | Read durable brand ↔ entity relationships. |
+| `relationships:write` | Pause, resume, end, and update relationship permissions. |
+| `entities:read` | Read entity identities — see [`entities`](/sdk/resources/entities/). |
+| `assertions:read` | Read tenant assertion claims and events. |
+| `assertions:write` | Assert and revoke tenant truth (claim-addressed). |
+| `operating_types:read` | Read the brand's capacity vocabulary. |
+| `operating_types:write` | Create, update, archive, reactivate operating types. |
+| `metric_keys:read` | Read the metric vocabulary (built-ins + registered `x:`). |
+| `metric_keys:write` | Register, update, archive, reactivate tenant metric keys. |
+| `requirement_overrides:read` | Read per-enrollment requirement overrides. |
+| `requirement_overrides:write` | Patch, add, disable, clear per-enrollment overrides. |
 | `enrollments:read` | Read program enrollments. |
-| `enrollments:write` | Invite, approve, reject, pause, resume enrollments. |
+| `enrollments:write` | Invite, approve, reject, pause, resume, set capacity. |
 | `connections:read` | Read provider identities and grants. |
 | `connections:write` | Revoke a connection or the brand's grants on it. |
-| `partners:read` | Reserved for the `partners` routes — see [`partners`](/sdk/resources/partners/). |
 
-Legacy `program_members:read` and `program_members:approve` are accepted as
-aliases for the enrollment scopes on already-issued tokens.
+Legacy spellings stay honored forever on already-issued tokens:
+`partnerships:read|write` (→ `relationships:*`), `partners:read`
+(→ `entities:read`), and `program_members:read|approve` (→ the enrollment
+scopes).
 
 ## Programs
 

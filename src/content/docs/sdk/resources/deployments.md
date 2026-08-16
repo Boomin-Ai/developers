@@ -148,5 +148,5 @@ await boomin.operations.wait(operation);
 ```
 
 To pause everything at once, pause the [distribution](/sdk/resources/distributions/)
-instead. Pausing a [partnership](/sdk/resources/partnerships/) pauses that
+instead. Pausing a [relationship](/sdk/resources/relationships/) pauses that
 partner's promo **links** across every program — never the shared channel.
