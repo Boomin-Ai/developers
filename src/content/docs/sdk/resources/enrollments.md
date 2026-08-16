@@ -27,9 +27,14 @@ await boomin.enrollments.approve(enrollment.id);
 | `reject(id, params, options)` | `POST /enrollments/{id}/reject` | `enrollments:write` |
 | `pause(id, params, options)` | `POST /enrollments/{id}/pause` | `enrollments:write` |
 | `resume(id, params, options)` | `POST /enrollments/{id}/resume` | `enrollments:write` |
+| `update(id, params, options)` | `POST /enrollments/{id}` | `enrollments:write` |
 
 Legacy `program_members:*` scopes are accepted as aliases on already-issued
 tokens.
+
+Per-member requirement adjustments live on the nested
+[`enrollments.requirementOverrides`](/sdk/resources/requirement-overrides/)
+subcollection.
 
 ## The enrollment object
 
@@ -45,6 +50,7 @@ tokens.
   "status": "active",
   "billingStatus": "billable",
   "qualificationStatus": "qualified",
+  "operatingType": "otype_...",
   "source": "platform_api",
   "metadata": {},
   "livemode": true,
@@ -135,6 +141,23 @@ the event's `occurred_at`.
 Billing continues while paused, deliberately: the partner's links still work.
 Archiving is the billing exit, and it keeps the `referralCode` for attribution
 history.
+
+## update — operating capacity
+
+```js
+await boomin.enrollments.update("enr_...", { operatingType: "advisor" });
+await boomin.enrollments.update("enr_...", { operatingType: null });   // clear
+```
+
+`operatingType` takes an [operating-type](/sdk/resources/operating-types/) KEY
+(or `otype_...` id); `null` clears the capacity. Typed requirements and money
+rules apply only while the enrollment operates in their capacity, and every
+change re-evaluates standing. Assigning an archived type answers
+`operating_type_archived` (409).
+
+A [Signed Handoff](/partner-connect/signed-handoff/) can carry `operatingType`
+on its signed payload, so your app sets the capacity at login time without a
+second call.
 
 ## list
 

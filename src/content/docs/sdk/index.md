@@ -184,10 +184,13 @@ Every non-2xx raises a subclass of `BoominError` carrying `code`, `status`,
 
 | Client | Methods |
 | --- | --- |
-| [`programs`](/sdk/resources/programs/) | `retrieve` `list` + nested `requirements` / `tiers` / `connectConfig` / `handoffConfig` |
-| [`partners`](/sdk/resources/partners/) | `retrieve` `list` — see the page: no `/partners` routes in this release |
-| [`partnerships`](/sdk/resources/partnerships/) | `list` `retrieve` `pause` `resume` `end` `updatePermissions` |
-| [`enrollments`](/sdk/resources/enrollments/) | `create` `retrieve` `list` `approve` `reject` `pause` `resume` |
+| [`programs`](/sdk/resources/programs/) | `create` `retrieve` `update` `list` `standingPreview` + nested `requirements` / `tiers` / `connectConfig` / `handoffConfig` |
+| [`entities`](/sdk/resources/entities/) | `retrieve` `list` (canonical; deprecated `partners` delegates here) |
+| [`relationships`](/sdk/resources/relationships/) | `list` `retrieve` `pause` `resume` `end` `updatePermissions` (canonical; deprecated `partnerships` delegates here) |
+| [`assertions`](/sdk/resources/assertions/) | `create` `revoke` `list` `retrieveEvent` — claim-addressed tenant truth |
+| [`operatingTypes`](/sdk/resources/operating-types/) | `create` `retrieve` `update` `list` `archive` — capacity vocabulary |
+| [`metricKeys`](/sdk/resources/metric-keys/) | `create` `retrieve` `update` `list` `archive` — tenant `x:` metrics |
+| [`enrollments`](/sdk/resources/enrollments/) | `create` `retrieve` `list` `approve` `reject` `pause` `resume` `update` + nested [`requirementOverrides`](/sdk/resources/requirement-overrides/) |
 | [`distributions`](/sdk/resources/distributions/) | `create` `retrieve` `update` `list` `validate` `launch` `pause` `resume` `cancel` |
 | [`deployments`](/sdk/resources/deployments/) | `retrieve` `list` |
 | [`connections`](/sdk/resources/connections/) | `list` `retrieve` `revoke` |

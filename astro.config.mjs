@@ -27,7 +27,7 @@ export default defineConfig({
           items: [
             { label: "Overview", slug: "index" },
             { label: "Quickstart", slug: "quickstart" },
-            { label: "The distribution model", slug: "concepts/model" },
+            { label: "The relationship model", slug: "concepts/model" },
             { label: "Authentication", slug: "concepts/authentication" },
             { label: "Pricing", slug: "pricing" },
             { label: "Roadmap", slug: "roadmap" }
@@ -43,9 +43,13 @@ export default defineConfig({
               label: "Resources",
               items: [
                 { label: "programs", slug: "sdk/resources/programs" },
-                { label: "partners", slug: "sdk/resources/partners" },
-                { label: "partnerships", slug: "sdk/resources/partnerships" },
+                { label: "entities", slug: "sdk/resources/entities" },
+                { label: "relationships", slug: "sdk/resources/relationships" },
                 { label: "enrollments", slug: "sdk/resources/enrollments" },
+                { label: "enrollments.requirementOverrides", slug: "sdk/resources/requirement-overrides" },
+                { label: "assertions", slug: "sdk/resources/assertions" },
+                { label: "operatingTypes", slug: "sdk/resources/operating-types" },
+                { label: "metricKeys", slug: "sdk/resources/metric-keys" },
                 { label: "distributions", slug: "sdk/resources/distributions" },
                 { label: "deployments", slug: "sdk/resources/deployments" },
                 { label: "connections", slug: "sdk/resources/connections" },

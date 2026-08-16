@@ -122,7 +122,7 @@ distribution-surface write, and `deployments:read` is a read-only grant by
 design.
 
 To move everything at once, act on the [distribution](/distributions/lifecycle/).
-Pausing a [partnership](/sdk/resources/partnerships/) moves that partner's
+Pausing a [relationship](/sdk/resources/relationships/) moves that partner's
 promo links only — never the shared channel.
 
 ## Budget allocation

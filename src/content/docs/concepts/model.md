@@ -1,14 +1,36 @@
 ---
-title: The distribution model
-description: Partner, Partnership, Enrollment, Distribution, Deployment, Performance — and the two rails a brand can run them on.
+title: The relationship model
+description: Entity, Relationship, Enrollment — the relationship stack — plus Distribution, Deployment, Performance, and the two rails a brand can run them on.
 ---
 
-Boomin is programmable distribution infrastructure. Everything in the Platform API is one of six nouns, plus an **Operation** that carries async work.
+Boomin is a programmable relationship engine, and distribution is what it runs
+over those relationships. Everything in the Platform API is one of six nouns,
+plus an **Operation** that carries async work.
+
+The first three are **the relationship stack** — two peers and the durable
+bond between them:
 
 ```txt
-Partner            a durable identity capable of distributing value
-  Partnership      the durable brand ↔ partner relationship (program-independent)
-    Enrollment     that partnership's participation in ONE program
+        YOUR BRAND ─────────── Relationship ─────────── Entity
+                                (rel_...)              (ent_...)
+                                    │
+        what the bond carries       │       what each peer contributes
+        ────────────────────       │       ─────────────────────────
+        Enrollment (enr_...)  — participation in ONE program
+          · operating type    — the CAPACITY the entity acts in (otype_...)
+          · requirement       — negotiated per-member terms (ovr_...)
+            overrides
+        Assertions (asrt_...) — facts YOUR system states about the entity,
+                                without handing Boomin the underlying data
+```
+
+Both peers stay thin; the **relationship is where the richness lives** —
+terms, capacity, negotiated policy, and the tenant truth your backend asserts.
+
+```txt
+Entity             a durable identity you have relationships with
+  Relationship     the durable brand ↔ entity bond (program-independent)
+    Enrollment     that relationship's participation in ONE program
 
 Distribution       intent — a coordinated objective. Never an execution mode.
   Deployment       execution — one concrete thing running somewhere
@@ -20,29 +42,50 @@ fans it out into **Deployments** and reports back what actually happened.
 
 ## The nouns
 
-### Partner
+### Entity
 
-A durable identity that can distribute value: a creator, an affiliate, an
-agency, another brand. Partners exist independently of any one program, and
-you never create them directly — inviting someone by email upserts the partner
-identity for you.
+A durable identity you have relationships with: a creator, an affiliate, an
+advisor, an agency, another company. Entities exist independently of any one
+program, and you never create them directly — inviting someone by email
+upserts the identity for you.
 
-Read-only in the API: `boomin.partners.list()`, `boomin.partners.retrieve(id)`.
+Read-only in the API: `boomin.entities.list()`, `boomin.entities.retrieve(id)`.
+(*Partner* is the legacy name; `boomin.partners` delegates here forever.)
 
-### Partnership
+### Relationship
 
-The durable relationship between one brand and one partner. Exactly one
-partnership exists per `(brand, partner)` pair, and it outlives any individual
-program.
+The durable bond between one brand and one entity. Exactly one relationship
+exists per `(brand, entity)` pair, and it outlives any individual program.
+(*Partnership* is the legacy name; aliased forever.)
 
 `status`: `pending` → `active` → (`paused`) → `ended`.
 
 - Created **pending** at the first invite.
 - Flips to **active** when the first enrollment is approved.
-- `pause()` pauses that partner's promo **links** across every program — never
+- `pause()` pauses that entity's promo **links** across every program — never
   the shared deployment channel. Enrollments and connection grants are preserved
   untouched, and the paused links keep resolving, so attribution continues.
 - `end()` is the explicit terminal command. It never fires automatically.
+
+Three primitives make the relationship *programmable* rather than a flat row:
+
+- **[Assertions](/sdk/resources/assertions/)** — tenant truth. Your backend
+  computes a private condition (verification, membership, KYC) and asserts
+  only the outcome; requirements gate standing on the claim via
+  `assert:<key>`, and revocation or expiry de-qualifies. Boomin never sees the
+  underlying data.
+- **[Operating types](/sdk/resources/operating-types/)** — capacity. Your
+  vocabulary for *how* an entity participates (advisor, reseller, agency);
+  typed requirements and money rules apply only to enrollments operating in
+  that capacity.
+- **[Requirement overrides](/sdk/resources/requirement-overrides/)** —
+  negotiated terms. Patch, suppress, or add requirements for one enrollment;
+  effective policy is `program ∘ operating type ∘ enrollment`.
+
+The fact vocabulary these evaluate over is extensible too:
+[**metric keys**](/sdk/resources/metric-keys/) let a brand register its own
+`x:`-namespaced metrics by API call — with each surface admitting exactly the
+vocabulary its rail can execute.
 
 ### Enrollment
 

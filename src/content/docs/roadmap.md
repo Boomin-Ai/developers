@@ -51,8 +51,6 @@ description: What is live now and what comes next.
   paid. The adapter contract does not change when they land.
 - SDK methods for the deployment verbs (the routes are already live — see
   [Deployments](/distributions/deployments/)).
-- `/v1/platform/partners` routes for the [`partners`](/sdk/resources/partners/)
-  client.
 - Test mode: `sk_test_` / `pk_test_` keys are reserved and every object already
   carries `livemode`, so no backfill will be needed.
 - Hosted customer portals on custom domains.
