@@ -141,7 +141,7 @@ either wait or take the legal transition.
 | `distribution_not_cancelable` | Already terminal. |
 | `deployment_not_pausable` / `_resumable` / `_cancelable` | Same, per deployment. |
 | `enrollment_not_pausable` / `_resumable` | Participation status already there, or archived. |
-| `partnership_not_pausable` / `_resumable` / `_endable` | Partnership status already there, or ended. |
+| `relationship_not_pausable` / `_resumable` / `_endable` | Relationship status already there, or ended. |
 | `connection_not_revocable` | The connection — or every grant on it — is already revoked. |
 
 ### Execution kernel
