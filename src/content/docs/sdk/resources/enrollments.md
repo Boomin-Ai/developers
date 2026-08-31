@@ -1,9 +1,9 @@
 ---
 title: enrollments
-description: Invite, approve, reject, pause, and resume a partnership's participation in one program.
+description: Invite, approve, reject, pause, and resume a relationship's participation in one program.
 ---
 
-An **enrollment** is a partnership's participation in exactly one program. It is
+An **enrollment** is a relationship's participation in exactly one program. It is
 where the `referralCode` lives, and it is the unit the evergreen rail runs on.
 
 Enrollments are **flat** — there is no `/programs/{id}/enrollments` nesting. The
@@ -43,8 +43,8 @@ subcollection.
   "id": "enr_...",
   "object": "enrollment",
   "program": "prog_...",
-  "partnership": "pship_...",
-  "partner": "ptnr_...",
+  "relationship": "rel_...",
+  "entity": "ent_...",
   "referralCode": "ABC123",
   "approvalStatus": "approved",
   "status": "active",
@@ -89,7 +89,7 @@ questions.
 ## create (invite)
 
 ```js
-// by email — upserts the partner identity
+// by email — upserts the entity identity
 await boomin.enrollments.create({
   program: "prog_...",
   email: "creator@example.com",
@@ -98,14 +98,14 @@ await boomin.enrollments.create({
   metadata: { cohort: "spring" },
 });
 
-// or against an existing partner
-await boomin.enrollments.create({ program: "prog_...", partner: "ptnr_..." });
+// or against an existing entity
+await boomin.enrollments.create({ program: "prog_...", entity: "ent_..." });
 ```
 
-One of `email` or `partner` is required. `create` answers **201** for a new
+One of `email` or `entity` is required. `create` answers **201** for a new
 enrollment and **200** when one already existed.
 
-In one call it: upserts the partner identity, opens the durable partnership as
+In one call it: upserts the entity identity, opens the durable relationship as
 `pending` if there wasn't one, and creates the enrollment as
 `(pending, active)`.
 
@@ -123,7 +123,7 @@ await boomin.enrollments.reject("enr_...");
 ```
 
 Approval fires a qualification evaluation and **activates the durable
-partnership** if it was still `pending`. It is the one flip point where the
+relationship** if it was still `pending`. It is the one flip point where the
 relationship becomes real.
 
 ## pause and resume
@@ -138,7 +138,7 @@ standing evaluation continues, new deployments skip the enrollment, and
 paused-period activity is permanently ineligible for reward grants — decided at
 the event's `occurred_at`.
 
-Billing continues while paused, deliberately: the partner's links still work.
+Billing continues while paused, deliberately: the entity's links still work.
 Archiving is the billing exit, and it keeps the `referralCode` for attribution
 history.
 

@@ -12,7 +12,7 @@ description: What is live now and what comes next.
   mutation returns an [Operation](/sdk/resources/operations/).
 - Program-grain deployments — one channel per (distribution × program × slot),
   with stable `deploymentKey`s, desired-vs-observed state, and one promo link
-  per approved partner.
+  per approved entity.
 - Funded and metered [budgets](/distributions/budgets/): wallet reservation at
   launch, exactly-once drawdown, remainder release on cancel.
 - [Performance](/distributions/performance/) ingestion with exactly-once keys
@@ -25,10 +25,10 @@ description: What is live now and what comes next.
 
 ### Relationships and programs
 
-- Durable partnerships, program enrollments, and the two orthogonal enrollment
+- Durable relationships, program enrollments, and the two orthogonal enrollment
   fields (`approvalStatus` vs `status`).
 - Qualification requirements and tiers.
-- Connections and per-partnership grants.
+- Connections and per-relationship grants.
 
 ### Surfaces
 
@@ -39,15 +39,15 @@ description: What is live now and what comes next.
   (`handoff provision`).
 - Opt-in [Discover listing](/partner-programs/discover/) (`--list`) with the
   public feed at `GET /v1/connect/discover`.
-- Hosted Partners dashboard for brands and the Connect surface for partners at
+- Hosted Entities dashboard for brands and the Connect surface for entities at
   `boomin.ai`.
-- Plans billed on monthly active partners ([Pricing](/pricing/)).
+- Plans billed on monthly active entities ([Pricing](/pricing/)).
 - Scoped platform keys, CLI key management, and platform smoke tests.
 - OpenAPI documents for the Partner Connect and Platform APIs.
 
 ## Next
 
-- Adapters beyond the Boomin partnership adapter — owned publication first, then
+- Adapters beyond the Boomin relationship adapter — owned publication first, then
   paid. The adapter contract does not change when they land.
 - SDK methods for the deployment verbs (the routes are already live — see
   [Deployments](/distributions/deployments/)).

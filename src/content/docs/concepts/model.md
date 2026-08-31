@@ -50,13 +50,13 @@ program, and you never create them directly — inviting someone by email
 upserts the identity for you.
 
 Read-only in the API: `boomin.entities.list()`, `boomin.entities.retrieve(id)`.
-(*Partner* is the legacy name; `boomin.partners` delegates here forever.)
+(*Entity* is the legacy name; `boomin.entities` delegates here forever.)
 
 ### Relationship
 
 The durable bond between one brand and one entity. Exactly one relationship
 exists per `(brand, entity)` pair, and it outlives any individual program.
-(*Partnership* is the legacy name; aliased forever.)
+(*Relationship* is the legacy name; aliased forever.)
 
 `status`: `pending` → `active` → (`paused`) → `ended`.
 
@@ -89,7 +89,7 @@ vocabulary its rail can execute.
 
 ### Enrollment
 
-A partnership's participation in one program. This is where the referral code
+A relationship's participation in one program. This is where the referral code
 lives (`referralCode` is unique per program by design).
 
 Enrollments carry **two orthogonal fields** — this trips people up, so be
@@ -110,7 +110,7 @@ rejected enrollment directly.
 ### Distribution
 
 Intent, and only intent. A distribution says *what business outcome you want*
-and *which programs supply eligible partners*; it never says "post to
+and *which programs supply eligible entities*; it never says "post to
 Instagram". It carries:
 
 - an `objective` (open text; the suggested set is `awareness`, `acquisition`,
@@ -129,8 +129,8 @@ campaign, not a channel, and not a post.
 Execution truth. Launching a distribution fans it out into one deployment per
 (program × planned slot) — a **channel**, never a person — each with a stable
 `deploymentKey` like `program_<id>:boomin:referral_link:primary`. The adapter
-mints one promo link per approved partner beneath each partner-program channel;
-per-partner attribution rides on each performance event's `enrollment`.
+mints one promo link per approved entity beneath each entity-program channel;
+per-entity attribution rides on each performance event's `enrollment`.
 
 A deployment separates what you asked for from what the world reports back:
 
@@ -156,14 +156,14 @@ poll the operations it caused.
 
 ## The two rails
 
-This is the part worth reading twice. A brand can run partner distribution on
+This is the part worth reading twice. A brand can run entity distribution on
 **either** of two rails, and they compose.
 
 ### Rail 1 — an evergreen program, no distribution
 
 The classic referral/affiliate rail. It needs no distribution at all.
 
-1. Create a program, invite partners (`enrollments.create`), approve them.
+1. Create a program, invite entities (`enrollments.create`), approve them.
 2. Each approved enrollment gets a program `referralCode`.
 3. Qualification requirements and tiers evaluate continuously from tracked
    activity.
@@ -185,12 +185,12 @@ await boomin.enrollments.approve(enrollment.id);
 ### Rail 2 — a distribution layered on top
 
 A distribution is a *time-boxed, funded, measurable push* that uses the same
-partners.
+entities.
 
 1. Create a distribution referencing one or more programs.
 2. Validate, then launch.
 3. Boomin creates **one deployment per (program × slot)** — a shared channel
-   whose adapter mints one promo link per approved partner, distinct from the
+   whose adapter mints one promo link per approved entity, distinct from the
    program's evergreen referral code.
 4. Conversions route by deployment and carry their own `enrollment`, so two
    distributions sharing the same program credit separately — each has its own
@@ -214,7 +214,7 @@ const { operation } = await boomin.distributions.launch(distribution.id);
 | | Evergreen program | Distribution |
 | --- | --- | --- |
 | Lifecycle | Runs until paused/archived | `draft` → `ready` → `launching` → `active` → `completed` |
-| Attribution | One program referral code per enrollment | One promo link per partner per **deployment** |
+| Attribution | One program referral code per enrollment | One promo link per entity per **deployment** |
 | Budget | None (rewards accrue) | Optional `metered` or `funded` reservation |
 | Measurement | Program metric events → qualification, rewards | Performance events → deployment/distribution rollups |
 | Pausing | Pause an enrollment | Pause the distribution or one deployment |
@@ -233,13 +233,13 @@ Pausing has deliberately asymmetric consequences, and they are resolved at
 | While paused | Links resolve | Attribution | Rewards | Billing |
 | --- | --- | --- | --- | --- |
 | Enrollment paused | yes | continues | **stops** | continues |
-| Partnership paused | yes | continues | **stops** | continues |
+| Relationship paused | yes | continues | **stops** | continues |
 | Enrollment archived | code retained for history | — | stops | stops |
-| Partnership ended | — | — | stops | stops |
+| Relationship ended | — | — | stops | stops |
 
-Pausing never dodges the active-partner fee while the partner's links still
-resolve. `archive` and `partnership.end` are the billing exits. See
-[Pricing](/pricing/) for what "active partner" means.
+Pausing never dodges the active-entity fee while the entity's links still
+resolve. `archive` and `relationship.end` are the billing exits. See
+[Pricing](/pricing/) for what "active entity" means.
 
 ## Where providers live
 
@@ -249,6 +249,6 @@ intent (`mode` / `medium` / `channel` / `format` in the deployment plan) and the
 registry resolves an adapter — or rejects the combination up front with
 `channel_type_not_yet_supported` during `validate()`.
 
-Today exactly one adapter is registered: the Boomin partnership adapter, which
-supports `partner_program` / `referral` / `boomin` / `referral_link`. Everything
+Today exactly one adapter is registered: the Boomin relationship adapter, which
+supports `program` / `referral` / `boomin` / `referral_link`. Everything
 else fails validation rather than failing at launch.

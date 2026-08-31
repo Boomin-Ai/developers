@@ -78,7 +78,7 @@ physical field name. Rule economics use `perUnitMinor` / `bonusMinor`.
 {
   "id": "2d7c12ab-…",
   "payoutId": "…",
-  "partnerId": "…",
+  "entityId": "…",
   "userId": null,
   "recipientHandle": "creator@example.com",
   "amountCents": 2500,
@@ -123,7 +123,7 @@ A `stripe_connect` batch takes `pending` rows only.
 
 :::note[`awaiting_account` is the normal status]
 A row lands `pending` only when its recipient already has an active,
-payouts-enabled payout account. Since partner Connect onboarding is not yet
+payouts-enabled payout account. Since entity Connect onboarding is not yet
 available, expect `awaiting_account` — and note `csv_batch` batches those rows
 anyway. Paying people who have no Boomin-side payout account is what the CSV
 rail is *for*.

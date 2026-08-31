@@ -8,7 +8,7 @@ are different from [Partner Connect](/partner-connect/browser-sdk/) public keys.
 
 :::danger
 Never put a `sk_boomin_live_...` token in browser code, mobile apps, or
-customer-visible HTML. Browser code uses the public `pk_live_...` Partner
+customer-visible HTML. Browser code uses the public `pk_live_...` Entity
 Connect key.
 :::
 

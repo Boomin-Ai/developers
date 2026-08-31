@@ -38,8 +38,8 @@ Full detail: [Authentication](/concepts/authentication/) and
 | Route family | SDK client |
 | --- | --- |
 | `/programs`, `/programs/{id}/requirements`, `/tiers`, `/connect_config`, `/handoff_config` | [`programs`](/sdk/resources/programs/) |
-| `/entities` (alias `/partners`) | [`entities`](/sdk/resources/entities/) |
-| `/relationships` (alias `/partnerships`) | [`relationships`](/sdk/resources/relationships/) |
+| `/entities` | [`entities`](/sdk/resources/entities/) |
+| `/relationships` | [`relationships`](/sdk/resources/relationships/) |
 | `/assertions` | [`assertions`](/sdk/resources/assertions/) |
 | `/operating_types` | [`operatingTypes`](/sdk/resources/operating-types/) |
 | `/metric_keys` | [`metricKeys`](/sdk/resources/metric-keys/) |

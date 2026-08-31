@@ -103,8 +103,8 @@ when money moves outside Boomin, which is the normal `csv_batch` case.
 ### stripe_connect
 
 The API accepts a create call for this rail. **It cannot disburse today.**
-Partner payouts over Connect need a transfers-only Express capability that is
-not yet approved on Boomin's Stripe platform account, so partners have no
+Entity payouts over Connect need a transfers-only Express capability that is
+not yet approved on Boomin's Stripe platform account, so entities have no
 onboarding path to complete and there is no `disburse` route on the Platform
 API — deliberately absent rather than present and always failing.
 

@@ -8,9 +8,9 @@ be run in order on a clean machine. It takes about fifteen minutes.
 
 You will: sign up, mint a platform key, install the SDK, create a program,
 configure a **payout rail** and a **payout rule**, embed Partner Connect, invite
-and approve a partner, create and launch a **funded distribution**, poll the
+and approve a entity, create and launch a **funded distribution**, poll the
 launch operation, receive a signed webhook, run payouts, and download a CSV that
-pays your partners.
+pays your entities.
 
 That last part is the point. The loop is not closed until money can leave.
 
@@ -33,11 +33,11 @@ npx @boomin/cli login
 
 ## 2. Create a program
 
-A **program** is the container your partners enroll into. Programs are created
+A **program** is the container your entities enroll into. Programs are created
 from the CLI (or the app) — not from the Platform API.
 
 ```bash
-npx @boomin/cli init --program-name "Launch Partners" --yes
+npx @boomin/cli init --program-name "Launch Entities" --yes
 ```
 
 `init` selects or creates an organization and brand, creates the program,
@@ -61,7 +61,7 @@ the app under **Developers**, or from the CLI:
 ```bash
 npx @boomin/cli token create \
   --name "Quickstart server" \
-  --scopes org:read,programs:read,partnerships:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write,payout_rules:read,payout_rules:write,payout_rails:read,payout_rails:write \
+  --scopes org:read,programs:read,relationships:read,enrollments:read,enrollments:write,distributions:read,distributions:write,distributions:launch,deployments:read,performance:read,performance:write,events:read,webhooks:read,webhooks:write,payouts:read,payouts:write,payout_rules:read,payout_rules:write,payout_rails:read,payout_rails:write \
   --save
 ```
 
@@ -131,14 +131,14 @@ Your `columns` headers are passed through byte-for-byte — the SDK converts
 `walletFunded` → `wallet_funded` but never touches anything inside `columns`.
 
 :::note[The stripe_connect rail cannot pay anyone yet]
-Partner disbursement over Stripe Connect is blocked on a platform capability
-that is not yet approved, so partners have no onboarding path and there is no
+Entity disbursement over Stripe Connect is blocked on a platform capability
+that is not yet approved, so entities have no onboarding path and there is no
 `disburse` route. `csv_batch` is the rail that works today.
 :::
 
 ## 6. Create a payout rule
 
-A rule is how a partner **earns**. Scope it to the program from step 2:
+A rule is how a entity **earns**. Scope it to the program from step 2:
 
 ```js
 const rule = await boomin.payouts.rules.create({
@@ -173,9 +173,9 @@ create a replacement rule, then `boomin.payouts.rules.archive(rule.id)`. There
 is no delete. [Why](/payouts/#2-rule-economics-are-immutable)
 :::
 
-## 7. Embed Partner Connect (get partners in)
+## 7. Embed Partner Connect (get entities in)
 
-Partner Connect is the browser surface where a partner joins your program.
+Partner Connect is the browser surface where a entity joins your program.
 Install it in your app's frontend:
 
 ```bash
@@ -200,7 +200,7 @@ If your app already has logged-in users, use
 [Signed Handoff](/partner-connect/signed-handoff/) instead of a second OTP.
 
 For the rest of this quickstart you can skip the browser entirely and invite a
-partner from the server:
+entity from the server:
 
 ```js
 const enrollment = await boomin.enrollments.create({
@@ -214,9 +214,9 @@ console.log(enrollment.id, enrollment.referralCode);
 // enr_...  ABC123
 ```
 
-Inviting upserts the partner identity, creates the durable partnership
+Inviting upserts the entity identity, creates the durable relationship
 (`pending`), and creates the enrollment `(pending, active)`. Approving flips
-`approvalStatus` to `approved` and activates the partnership.
+`approvalStatus` to `approved` and activates the relationship.
 
 At this point the evergreen rail is already live: that `referralCode` resolves
 and attributes.
@@ -230,7 +230,7 @@ const distribution = await boomin.distributions.create({
   programs: [process.env.BOOMIN_PROGRAM_ID],
   spec: {
     plan: {
-      partner: {
+      entity: {
         enrollment_policy: "all_approved",
         slots: [
           { name: "primary", medium: "referral", channel: "boomin", format: "referral_link" },
@@ -303,7 +303,7 @@ for await (const deployment of boomin.deployments.list({ distribution: dist.id }
 ```
 
 A deployment is a **channel**, one per (distribution × program × slot) — never a
-person. The adapter mints one promo link per approved partner beneath it,
+person. The adapter mints one promo link per approved entity beneath it,
 distinct from the program's evergreen referral code — so two distributions
 sharing one program credit separately.
 
@@ -314,7 +314,7 @@ Business measurements go in against a deployment:
 ```js
 await boomin.performance.events.create({
   deployment: "dep_...",
-  enrollment: enrollment.id, // which partner earned it — omit for unattributed measurement
+  enrollment: enrollment.id, // which entity earned it — omit for unattributed measurement
   type: "purchase",
   valueMinor: 4999,
   currency: "usd",
@@ -515,7 +515,7 @@ so a retry after a timeout cannot settle the run twice.
 npx @boomin/cli payout batches confirm pob_... --external-batch-ref PAYPAL-2026-08
 ```
 
-The loop is now closed: a partner joined, a distribution ran, a conversion was
+The loop is now closed: a entity joined, a distribution ran, a conversion was
 measured, a rule priced it, and a rail paid it.
 
 ## The whole thing, in one file
@@ -544,7 +544,7 @@ await boomin.payouts.rails.create({
   isDefault: true,
 });
 
-// 2. How a partner earns.
+// 2. How a entity earns.
 await boomin.payouts.rules.create({
   name: "20% of tracked revenue",
   type: "revenue_split",
@@ -552,7 +552,7 @@ await boomin.payouts.rules.create({
   rateBps: 2000,
 });
 
-// 3. Get a partner in.
+// 3. Get a entity in.
 const enrollment = await boomin.enrollments.create({ program, email: "creator@example.com" });
 await boomin.enrollments.approve(enrollment.id);
 
@@ -612,7 +612,7 @@ npx @boomin/cli payout batches confirm pob_... --external-batch-ref PAYPAL-2026-
 
 ## Next
 
-- [Getting partners paid](/payouts/) — the money model, and the five things that surprise people.
+- [Getting entities paid](/payouts/) — the money model, and the five things that surprise people.
 - [The distribution model](/concepts/model/) — the nouns, and the two rails.
 - [Distributions](/distributions/) — lifecycle, budgets, cancellation.
 - [SDK reference](/sdk/) — every resource client.

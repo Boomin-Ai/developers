@@ -10,7 +10,7 @@ type, per deployment, per distribution.
 ```js
 await boomin.performance.events.create({
   deployment: "dep_...",
-  enrollment: "enr_...", // which partner earned it — omit for unattributed measurement
+  enrollment: "enr_...", // which entity earned it — omit for unattributed measurement
   type: "purchase",
   valueMinor: 4999,
   currency: "usd",
@@ -28,8 +28,8 @@ The `deployment` names the channel, and from it Boomin derives the distribution
 and the program — you never send those, which is precisely why they cannot
 drift.
 
-**Which partner earned the event is the event's own `enrollment` field.** A
-deployment is a shared channel and names no partner, so the event carries its
+**Which entity earned the event is the event's own `enrollment` field.** A
+deployment is a shared channel and names no entity, so the event carries its
 own attribution: the `?ref=` link paths stamp `enrollment` themselves, and a
 first-party integration recording its own conversions passes it explicitly.
 Omit it for genuinely unattributed measurement (owned/paid channels).
@@ -37,7 +37,7 @@ Omit it for genuinely unattributed measurement (owned/paid channels).
 ## Finding the deployment
 
 Conversions arrive at your system with an attribution token — the code a
-partner shared. The codes minted for a channel's partners are listed on the
+entity shared. The codes minted for a channel's entities are listed on the
 deployment:
 
 ```js
@@ -75,7 +75,7 @@ Reward eligibility is resolved at the event's `occurredAt`, **not** at
 ingestion time.
 
 That matters because provider syncs arrive late. An event that *happened* while
-an enrollment or partnership was paused stays permanently ineligible for reward
+an enrollment or relationship was paused stays permanently ineligible for reward
 grants even if it lands days after the resume. Reading current status at
 ingestion would retroactively pay out a paused period on unpause — so the
 platform does not do that.
@@ -126,8 +126,8 @@ for await (const dep of boomin.deployments.list({ distribution: "dist_..." })) {
 rows.sort((a, b) => b.valueMinor - a.valueMinor);
 ```
 
-A channel summary never splits by partner — per-partner attribution is each
-event's `enrollment`. To rank partners, keep your own tally keyed on the
+A channel summary never splits by entity — per-entity attribution is each
+event's `enrollment`. To rank entities, keep your own tally keyed on the
 `enrollment` you ingest (or that the `?ref=` paths stamp); there is no
 per-enrollment rollup endpoint in this release.
 
@@ -140,7 +140,7 @@ per-enrollment rollup endpoint in this release.
 
 Distribution execution that is program-relevant also **projects** into the
 program spine — that is what `projected: true` on the ingestion response means.
-So a partner's qualification keeps accruing whether the activity came through
+So a entity's qualification keeps accruing whether the activity came through
 the evergreen referral rail or a launched distribution.
 
 Nothing is ever migrated between the two. The projection is permanent, and the

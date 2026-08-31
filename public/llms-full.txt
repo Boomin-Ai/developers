@@ -1,6 +1,6 @@
 # Boomin Full Agent Context
 
-Boomin is programmable distribution infrastructure. It lets customers run partner
+Boomin is programmable distribution infrastructure. It lets customers run entity
 distribution — enrollment, approval, referral attribution, coordinated launches,
 budgets, measurement, and payouts — without rebuilding email OTP, Instagram OAuth,
 approval queues, attribution plumbing, async execution machinery, or scoped
@@ -29,10 +29,10 @@ Connection         provider identity (owner: entity XOR brand) + per-relationshi
 ```
 
 Canonical naming (RELATIONSHIP_CORE): `entity` and `relationship` replaced
-"partner" and "partnership". The legacy spellings are aliases FOREVER — routes
-(`/partners`, `/partnerships`), id prefixes (`ptnr_`, `pship_`), scopes
-(`partners:read`, `partnerships:*`), SDK getters (`boomin.partners`,
-`boomin.partnerships`), and `partnership.*` webhook subscriptions all keep
+"entity" and "relationship". The legacy spellings are aliases FOREVER — routes
+(`/entities`, `/relationships`), id prefixes (`ent_`, `rel_`), scopes
+(`entities:read`, `relationships:*`), SDK getters (`boomin.entities`,
+`boomin.relationships`), and `relationship.*` webhook subscriptions all keep
 working; responses emit `ent_`/`rel_` and `object: "entity"|"relationship"`.
 New id prefixes: `asrt_` (assertion event), `otype_` (operating type), `ovr_`
 (requirement override), `mkey_` (metric key). The relationship-stack detail —
@@ -56,7 +56,7 @@ deployment and are excluded from `plan_hash`.
 
 The classic referral/affiliate rail. Needs no distribution at all.
 
-1. Create a program, invite partners (`enrollments.create`), approve them.
+1. Create a program, invite entities (`enrollments.create`), approve them.
 2. Each approved enrollment gets a program `referral_code` (unique per program).
 3. Qualification requirements and tiers evaluate continuously from tracked activity.
 4. Rewards and payouts accrue against the program.
@@ -72,7 +72,7 @@ await boomin.enrollments.approve(enrollment.id);
 
 ### Rail 2 — a distribution layered on top
 
-A time-boxed, funded, measurable push over the same partners.
+A time-boxed, funded, measurable push over the same entities.
 
 1. Create a distribution referencing one or more programs.
 2. `validate()`, then `launch()`.
@@ -111,7 +111,7 @@ pending, and a rejected enrollment may be approved directly.
 
 `resume` is the canonical verb on every surface. There is no `unpause`.
 
-Approving the first enrollment activates the durable partnership. Partnership
+Approving the first enrollment activates the durable relationship. Relationship
 status is `pending` -> `active` -> (`paused`) -> `ended`; `end()` is terminal and
 never fires automatically.
 
@@ -122,14 +122,14 @@ Resolved at the event's `occurred_at`, never at ingestion:
 | While paused | Links resolve | Attribution | Rewards | Billing |
 | --- | --- | --- | --- | --- |
 | Enrollment paused | yes | continues | STOPS | continues |
-| Partnership paused | yes | continues | STOPS | continues |
+| Relationship paused | yes | continues | STOPS | continues |
 | Enrollment archived | code retained for history | — | stops | stops |
-| Partnership ended | — | — | stops | stops |
+| Relationship ended | — | — | stops | stops |
 
-Pausing never dodges the active-partner fee while the partner's links still
-resolve. `archive` and `partnership.end` are the billing exits.
+Pausing never dodges the active-entity fee while the entity's links still
+resolve. `archive` and `relationship.end` are the billing exits.
 
-`partnership.pause` blocks NEW partner deployments across ALL programs, pauses
+`relationship.pause` blocks NEW entity deployments across ALL programs, pauses
 existing ones via operations, and PRESERVES enrollments and connection grants
 untouched so resume is exact.
 
@@ -142,7 +142,7 @@ untouched so resume is exact.
 - `Idempotency-Key` on every mutation, including DELETE. Reusing a key with a different body is `idempotency_key_conflict` (409).
 - Success bodies are BARE top-level objects.
 - Lists: `{"object":"list","data":[...],"has_more":boolean}`. `?limit=` 1-100 (default 20), `?starting_after=<id>`.
-- Ids prefixed on output, accepted with or without prefix: `prog_` `ptnr_` `pship_` `enr_` `dist_` `dep_` `conn_` `op_` `evt_` `perf_` `po_` `pob_` `we_`.
+- Ids prefixed on output, accepted with or without prefix: `prog_` `ent_` `rel_` `enr_` `dist_` `dep_` `conn_` `op_` `evt_` `perf_` `po_` `pob_` `we_`.
 - A WRONG prefix for the resource returns that resource's typed 404 — existence is never leaked across tenants.
 - Errors: `{"error":{"code","message","param","request_id"}}`. `request_id` is also the `Request-Id` header.
 - Auth runs BEFORE id resolution: an unauthenticated probe is always 401, never 404.
@@ -163,7 +163,7 @@ untouched so resume is exact.
 ```
 
 Reads that add a companion field alongside the bare resource:
-`distributions.validate` adds `valid` + `errors`; `partnerships.retrieve` adds
+`distributions.validate` adds `valid` + `errors`; `relationships.retrieve` adds
 `enrollments`; `payouts.batches.retrieve` adds `items`;
 `performance.events.create` adds `duplicate` + `projected`;
 `payouts.exportCsv` adds `items`, `skipped`, `export_file_key`, `download_url`.
@@ -208,15 +208,15 @@ and a CSV header stays byte-identical.
 Lists resolve one page and are ALSO async-iterable across every page:
 
 ```js
-const page = await boomin.partnerships.list({ limit: 20 });      // one page
+const page = await boomin.relationships.list({ limit: 20 });      // one page
 for await (const e of boomin.enrollments.list({ program })) { }  // every page
 ```
 
 ### The 12 clients
 
 - `programs` — `retrieve` `list`; nested `requirements` / `tiers` (create, retrieve, update, list, del) and `connectConfig` / `handoffConfig` (retrieve, update). NOTE: `create`/`update` exist on the client but have NO route in this release.
-- `partners` — `retrieve` `list`. NOTE: no `/v1/platform/partners` routes in this release. Read partner identity off `partnerships` (which embeds `partner: {id, name, email}`).
-- `partnerships` — `list` `retrieve` `pause` `resume` `end` `updatePermissions`
+- `entities` — `retrieve` `list`. NOTE: no `/v1/platform/entities` routes in this release. Read entity identity off `relationships` (which embeds `entity: {id, name, email}`).
+- `relationships` — `list` `retrieve` `pause` `resume` `end` `updatePermissions`
 - `enrollments` — `create` (invite) `retrieve` `list` `approve` `reject` `pause` `resume`
 - `distributions` — `create` `retrieve` `update` `list` `validate` `launch` `pause` `resume` `cancel`
 - `deployments` — `retrieve` `list`. The pause/resume/cancel ROUTES are live (scope `distributions:write`); SDK methods are not.
@@ -261,7 +261,7 @@ Deployment plan (`spec`), all fields optional — the default is one referral-li
 slot per approved enrollment:
 
 ```js
-spec: { plan: { partner: {
+spec: { plan: { entity: {
   enrollment_policy: "all_approved",
   slots: [{ name: "primary", medium: "referral", channel: "boomin", format: "referral_link" }],
 } } }
@@ -283,7 +283,7 @@ Desired vs observed are kept apart permanently:
 They disagree routinely; that is not an error. Persistent divergence fires
 `deployment.drifted`.
 
-Each partner deployment owns its OWN attribution instrument (ids land in
+Each entity deployment owns its OWN attribution instrument (ids land in
 `external_ids`), distinct from the enrollment's evergreen `referral_code`.
 
 `retrieve` additionally includes a `capabilities` descriptor honest to the
@@ -366,7 +366,7 @@ ONE of `idempotency_key` or `external_event_id` is REQUIRED, else
 ingestion, 200 with `duplicate: true` on replay. `projected: true` means the
 event also projected into the program metric spine.
 
-You never send a partner, enrollment, or program — that context is derived
+You never send a entity, enrollment, or program — that context is derived
 through the deployment, which is why it cannot drift.
 
 Reward eligibility is resolved at `occurred_at`, NOT at ingestion. Send a
@@ -404,7 +404,7 @@ leave the org and are not addressable as a filter or a webhook subscription:
 
 - distribution.launching, .live, .paused, .resumed, .completed, .failed, .canceled
 - deployment.created, .activated, .rejected, .paused, .completed, .drifted, .cancel_requested, .canceled, .cleanup_failed
-- relationship.created, .activated, .paused, .resumed, .ended (canonical; legacy partnership.* subscriptions still receive them)
+- relationship.created, .activated, .paused, .resumed, .ended (canonical; legacy relationship.* subscriptions still receive them)
 - enrollment.created, .approved, .rejected, .activated, .qualified, .disqualified (qualified/disqualified = standing transitions, emitted exactly once per committed change with previous_status + trigger in the payload)
 - assertion.created, .revoked (tenant-truth claims changing; an expiry refresh is a new assertion.created)
 - payout.created, .settled, .failed
@@ -493,7 +493,7 @@ depend on order (use `event.seq`).
 
 ## Payouts
 
-Three nouns. `payouts.rules` = how a partner EARNS. `payouts.rails` = how money
+Three nouns. `payouts.rules` = how a entity EARNS. `payouts.rails` = how money
 physically LEAVES. `payouts.batches` = one frozen disbursement run. All nested
 under `/v1/platform/payouts` — they are parts of one supporting system, not three
 more top-level primitives competing with Distribution.
@@ -548,7 +548,7 @@ await boomin.payouts.rails.create({
   isDefault: true,
 });
 
-// 2. HOW A PARTNER EARNS.
+// 2. HOW A ENTITY EARNS.
 await boomin.payouts.rules.create({
   name: "20% of tracked revenue",
   type: "revenue_split",
@@ -599,7 +599,7 @@ await boomin.operations.wait(confirmed.operation);
   `program` is required on EVERY variant, because the evaluator resolves
   recipients through program membership and skips any rule without one.
 - `threshold_bonus` with `window_days` measures the trailing window ending at
-  `period_end`; without it, the partner's ALL-TIME total for that metric.
+  `period_end`; without it, the entity's ALL-TIME total for that metric.
 - `metric_key` vocabulary (closed, mirrored by a DB CHECK): followers, views,
   post_count, collab_posts, link_clicks, referral_count, gmv_cents, sales_count,
   product_usage_count, channel_connected, manual_approval, event_registration,
@@ -704,10 +704,10 @@ readable. Idempotent.
   racers both succeed and the DB ends with exactly one default.
 - THE `stripe_connect` RAIL CANNOT PAY ANYONE TODAY. It is configurable (with an
   empty config — every csv key is refused rather than accepted-and-ignored), but
-  partner disbursement needs a transfers-only Express capability that is not
-  approved on Boomin's Stripe platform account, so partners have no onboarding
+  entity disbursement needs a transfers-only Express capability that is not
+  approved on Boomin's Stripe platform account, so entities have no onboarding
   path. There is deliberately NO `disburse` route: an absent route beats one
-  that always 500s. `connect_status.stripe.partner_accounts_payouts_enabled`
+  that always 500s. `connect_status.stripe.entity_accounts_payouts_enabled`
   stays at 0. Use `csv_batch`.
 - Ids: `prail_`.
 
@@ -750,7 +750,7 @@ batch, so a period can be safely re-run after partial export.
   brand-bridged (bridged rows settle on the wallet rail — never both). A
   `stripe_connect` batch takes `pending` only.
 - `awaiting_account` IS THE NORMAL STATUS: a row is `pending` only when its
-  recipient already has an active, payouts-enabled payout account, and partner
+  recipient already has an active, payouts-enabled payout account, and entity
   onboarding is gated. `csv_batch` batches those rows anyway — paying people who
   have no Boomin-side payout account is what the CSV rail is FOR.
 - `batches.create` is SYNCHRONOUS (201) — the build is one DB transaction
@@ -793,7 +793,7 @@ batch, so a period can be safely re-run after partial export.
   but it DOES honour them. Ids: `pob_`.
 - `connect_status` returns rails (identity and state ONLY, never `config` — that
   is a payout_rails:read surface) plus
-  `stripe: { configured, partner_accounts, partner_accounts_payouts_enabled }`.
+  `stripe: { configured, entity_accounts, entity_accounts_payouts_enabled }`.
   `configured` reports whether a Stripe key is present, NOT whether anyone can be
   paid.
 
@@ -828,7 +828,7 @@ Key codes and recovery:
 - `platform_token_required` (401) — no Bearer header. v1 is Bearer-only.
 - `platform_token_unknown` / `_inactive` / `_expired` / `_org_missing` (401) — mint or rotate a key.
 - `missing_scope` (403) — message is `missing_scope:<scope>`. Mint a key with that scope.
-- `band_limit_reached` (402) — the org's active-partner band is full. Upgrade the band.
+- `band_limit_reached` (402) — the org's active-entity band is full. Upgrade the band.
 - `operation_conflict` (409) — a live operation holds the subject's concurrency slot. Retrieve and poll it; do not enqueue a rival.
 - `cancellation_in_progress` (409) — a cancel holds the control gate. Wait for it to settle.
 - `cancellation_requires_intervention` (409) — a previous cancel failed with unresolved teardown; the gate stays closed by design. Carries the failed operation id; an operator retry resolves it.
@@ -845,10 +845,10 @@ Key codes and recovery:
 - `payout_batch_conflict` / `payout_batch_not_exportable` / `_not_confirmable` / `_not_cancelable` / `_not_disbursable` (409) -> PayoutBatchStateError — read the batch and look at `status`.
 - `payout_rule_not_found` / `payout_rail_not_found` (404).
 - `conflicting_parameters` -> ConflictingParametersError — a camelCase key and its snake_case twin both appeared in one body, query, or response. Send one spelling.
-- Lifecycle 409s: `distribution_not_editable`, `distribution_programs_draft_only`, `distribution_not_validatable`, `distribution_not_ready`, `distribution_not_pausable|_resumable|_cancelable`, `deployment_not_pausable|_resumable|_cancelable`, `enrollment_not_pausable|_resumable`, `partnership_not_pausable|_resumable|_endable`, `connection_not_revocable`.
+- Lifecycle 409s: `distribution_not_editable`, `distribution_programs_draft_only`, `distribution_not_validatable`, `distribution_not_ready`, `distribution_not_pausable|_resumable|_cancelable`, `deployment_not_pausable|_resumable|_cancelable`, `enrollment_not_pausable|_resumable`, `relationship_not_pausable|_resumable|_endable`, `connection_not_revocable`.
 - `test_mode_not_yet_available` (400) — `sk_test_`/`pk_test_` are reserved but not built.
 - `developer_access_paused` (503) — operator kill switch. Retry later.
-- 404s (`distribution_not_found`, `deployment_not_found`, `enrollment_not_found`, `partnership_not_found`, `connection_not_found`, `operation_not_found`, `program_not_found`, `partner_not_found`, `payout_batch_not_found`, `webhook_endpoint_not_found`, `brand_not_found`) are returned identically for "does not exist", "belongs to another org", and "malformed id". Existence is never leaked across tenants.
+- 404s (`distribution_not_found`, `deployment_not_found`, `enrollment_not_found`, `relationship_not_found`, `connection_not_found`, `operation_not_found`, `program_not_found`, `entity_not_found`, `payout_batch_not_found`, `webhook_endpoint_not_found`, `brand_not_found`) are returned identically for "does not exist", "belongs to another org", and "malformed id". Existence is never leaked across tenants.
 
 `funding_required` is primarily an operation `waiting_reason`, not a terminal
 error: a funded launch with an underfunded wallet PARKS and resumes once topped
@@ -866,21 +866,21 @@ plan's `mode` / `medium` / `channel` / `format` and the registry resolves an
 adapter — or rejects the combination during `validate()` with
 `channel_type_not_yet_supported`.
 
-Exactly ONE adapter is registered today: the Boomin partnership adapter,
-supporting `partner` / `referral` / `boomin` / `referral_link`. Everything else
+Exactly ONE adapter is registered today: the Boomin relationship adapter,
+supporting `entity` / `referral` / `boomin` / `referral_link`. Everything else
 fails validation rather than failing at launch.
 
 ## Connections
 
-Connection = a provider identity owned by a partner XOR a brand
+Connection = a provider identity owned by a entity XOR a brand
 (`kind`: social_profile | ad_account | page | pixel | payout). A grant is one
-partnership's right to use it.
+relationship's right to use it.
 
 Visible to your token when your brand owns it OR a live grant reaches it through
-one of your partnerships; anything else is `connection_not_found`.
+one of your relationships; anything else is `connection_not_found`.
 
-`revoke()`: brand-owned -> the connection itself is revoked; partner-owned -> only
-YOUR grants are revoked (the identity is the partner's). Already-revoked ->
+`revoke()`: brand-owned -> the connection itself is revoked; entity-owned -> only
+YOUR grants are revoked (the identity is the entity's). Already-revoked ->
 `connection_not_revocable` (409).
 
 ## Partner Connect (browser)
@@ -932,7 +932,7 @@ Surface configuration is readable and writable from the Platform API via
 ## Signed Handoff
 
 Use Signed Handoff when the customer app already has a logged-in user, so the
-partner does not enter a second email OTP.
+entity does not enter a second email OTP.
 
 ```bash
 npm install @boomin/server
@@ -984,7 +984,7 @@ the public Discover feed; the default is private. With `--auth custom`, wire the
 generated `getCurrentUser` to your auth; `clerk` and `supabase` are prewired.
 `handoff provision --rotate` invalidates the old secret.
 
-The join call creates the partner, the enrollment, and the referral code; clicks
+The join call creates the entity, the enrollment, and the referral code; clicks
 on `/r/CODE` are tracked as link clicks in standing metrics.
 
 Generated files:
@@ -1050,7 +1050,7 @@ Platform v1 groups over the live REST tree:
 ```bash
 npx @boomin/cli distribution create|list|get|validate|launch|pause|resume|cancel
 npx @boomin/cli enrollment invite|approve|reject|list|get|set-type|overrides
-npx @boomin/cli relationship list|get|pause|resume|end      # alias: partnership
+npx @boomin/cli relationship list|get|pause|resume|end      # alias: relationship
 npx @boomin/cli assertion assert|revoke|list
 npx @boomin/cli operating-type create|list|get|update|archive
 npx @boomin/cli metric register|list|get|update|archive
@@ -1128,7 +1128,7 @@ audit logs.
 Default skill pack — `Referral Program Installer`: `boomin.doctor`,
 `boomin.detect_project`, `boomin.get_connect_config`,
 `boomin.scaffold_referral_first`, `boomin.verify_referral_install`,
-`boomin.get_partner_standing`, `boomin.record_test_event`.
+`boomin.get_entity_standing`, `boomin.record_test_event`.
 
 Admin opt-in skill pack — `Program Operator`: `boomin.get_program`,
 `boomin.update_program`, `boomin.update_required_channels`,
@@ -1183,8 +1183,8 @@ job cannot also redirect where the money lands. For the same reason
 `GET /payouts/connect_status` (a `payouts:read` surface) reports rail identity
 and state but NEVER `config` — read config from `GET /payouts/rails`.
 
-Relationships: `relationships:read|write` (legacy alias `partnerships:*`),
-`entities:read` (legacy alias `partners:read`), `enrollments:read|write`,
+Relationships: `relationships:read|write` (legacy alias `relationships:*`),
+`entities:read` (legacy alias `entities:read`), `enrollments:read|write`,
 `connections:read|write`, `assertions:read|write`, `operating_types:read|write`,
 `metric_keys:read|write`, `requirement_overrides:read|write`.
 
@@ -1217,29 +1217,29 @@ spending money is not the same permission as editing a draft.
 ## Discover feed and hosted surfaces
 
 - `GET https://api.boomin.ai/v1/connect/discover` — public, unauthenticated feed of listed programs (display-safe program cards + requirements summary; offset-paginated, limit max 50).
-- Partners browse and apply at `boomin.ai/connect`, then track applications and referral links there. A Partners tab appears in a partner's workspace once a program approves them.
-- Brands operate programs at `boomin.ai` under Partners: active partners + views this month, member table with OAuth-verified socials, applications inbox (approve/reject), and a "List on Connect discover" toggle.
+- Entities browse and apply at `boomin.ai/connect`, then track applications and referral links there. A Entities tab appears in a entity's workspace once a program approves them.
+- Brands operate programs at `boomin.ai` under Entities: active entities + views this month, member table with OAuth-verified socials, applications inbox (approve/reject), and a "List on Connect discover" toggle.
 
 ## Pricing
 
-Billed on monthly ACTIVE partners only: a partner is active in a calendar month
+Billed on monthly ACTIVE entities only: a entity is active in a calendar month
 when they are approved AND drove >=1 tracked event (referral-link click or
-tracked post) that month. Dormant partners are always free. A partner in two
-programs counts ONCE — the aggregation key is the distinct partnership.
+tracked post) that month. Dormant entities are always free. A entity in two
+programs counts ONCE — the aggregation key is the distinct relationship.
 
 Tiers: Free up to 10 active, Starter $79/mo up to 25, Growth $299/mo up to 100,
 Scale $999/mo up to 500, beyond that contact. Views are never billed — they are
 OAuth-verified value metrics, not billing metrics.
 
-Neither enrollment pause nor partnership pause affects billability: links keep
+Neither enrollment pause nor relationship pause affects billability: links keep
 resolving under both, so pausing never dodges fees. Archive or
-`partnership.end` are the billing exits.
+`relationship.end` are the billing exits.
 
 ## Deprecated
 
 - `boominjs` — DEPRECATED. Use `@boomin/sdk` for the Platform API, or `@boomin/connect` for browser Partner Connect.
 - "Creator Connect" is the former name of Partner Connect. Old `/creator-connect/*` doc paths 301 to `/partner-connect/*`.
-- "partner"/"partnership" are the former names of entity/relationship (RELATIONSHIP_CORE) — aliased forever on routes, ids, scopes, SDK getters, and webhook subscriptions; old doc paths 301 to `/sdk/resources/entities/` and `/sdk/resources/relationships/`.
+- "entity"/"relationship" are the former names of entity/relationship (RELATIONSHIP_CORE) — aliased forever on routes, ids, scopes, SDK getters, and webhook subscriptions; old doc paths 301 to `/sdk/resources/entities/` and `/sdk/resources/relationships/`.
 - The pre-v1 RPC routes under `/v1/platform` remain functional for old CLI versions, MCP, and existing integrations. New work uses the REST tree and `@boomin/sdk`.
 - `@boomin/server` is CURRENT again as of 0.2.0 — Signed Handoff plus `assert`/`revokeAssertion`/`recordConversion`/`getStanding` tenant-side helpers.
 

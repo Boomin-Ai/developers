@@ -9,15 +9,15 @@ is intent, a deployment is the record of execution.
 ## Fan-out
 
 Launching creates **one deployment per (program × planned slot)** — a channel
-of execution, never a person. Beneath each partner-program channel, the adapter
-mints **one promo link per approved partner**.
+of execution, never a person. Beneath each entity-program channel, the adapter
+mints **one promo link per approved entity**.
 
 With the default plan — one referral-link slot, `enrollment_policy:
 "all_approved"` — a distribution over a program with twelve approved enrollments
 produces **one** deployment carrying twelve promo links.
 
 Add a second slot and you get two deployments. Associate a second program and
-you get one channel per (program × slot); a partner enrolled in both programs
+you get one channel per (program × slot); a entity enrolled in both programs
 gets one link on each program's channel.
 
 ```js
@@ -64,7 +64,7 @@ for you.
 
 This is the part worth internalizing.
 
-Each partner-program deployment carries one promo link per approved partner —
+Each entity-program deployment carries one promo link per approved entity —
 minted by the adapter, distinct from each enrollment's evergreen program
 `referralCode`. The link identities land in `externalIds`:
 
@@ -73,7 +73,7 @@ minted by the adapter, distinct from each enrollment's evergreen program
 ```
 
 Conversions route by deployment and carry their **own** `enrollment` — the
-`?ref=` link paths stamp which partner earned each event (see
+`?ref=` link paths stamp which entity earned each event (see
 [Performance](/distributions/performance/)). Two distributions that share the
 same program credit **separately**, because each has its own channel and its
 own links — and both are separate from the program's always-on referral rail.
@@ -82,12 +82,12 @@ That is the concrete difference between the two rails:
 
 | | Evergreen program | Distribution |
 | --- | --- | --- |
-| Instrument | One `referralCode` per enrollment | One promo link per (partner × deployment) |
+| Instrument | One `referralCode` per enrollment | One promo link per (entity × deployment) |
 | Ownership | The enrollment | The deployment channel |
 | Measurement lands in | Program metric events | Performance events (and projects into the program spine) |
 | Survives the push ending | Yes, forever | The links stop when the deployment is canceled |
 
-A partner in your ambassador program who also joins the spring launch has one
+A entity in your ambassador program who also joins the spring launch has one
 evergreen code plus one launch-specific link, and you can tell exactly which
 drove which sale.
 
@@ -103,7 +103,7 @@ current state — what the resolved adapter can actually do with this deployment
 right now, not what it could do in principle.
 
 The references come back as ids: `program`, `connection` (both nullable), and
-`distribution`. There is no `partnership` or `enrollment` on a deployment — a
+`distribution`. There is no `relationship` or `enrollment` on a deployment — a
 channel names the program it runs for, never a person.
 
 ## Controlling one deployment
@@ -122,7 +122,7 @@ distribution-surface write, and `deployments:read` is a read-only grant by
 design.
 
 To move everything at once, act on the [distribution](/distributions/lifecycle/).
-Pausing a [relationship](/sdk/resources/relationships/) moves that partner's
+Pausing a [relationship](/sdk/resources/relationships/) moves that entity's
 promo links only — never the shared channel.
 
 ## Budget allocation

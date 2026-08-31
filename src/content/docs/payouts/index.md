@@ -1,6 +1,6 @@
 ---
-title: Getting partners paid
-description: The money model in plain language — rules decide how a partner earns, rails decide how money leaves, batches are the lifecycle.
+title: Getting entities paid
+description: The money model in plain language — rules decide how a entity earns, rails decide how money leaves, batches are the lifecycle.
 ---
 
 Distribution is only half the product. The other half is that the people who
@@ -8,7 +8,7 @@ distributed for you actually get paid. That half is three nouns:
 
 | Noun | Question it answers | Scope |
 | --- | --- | --- |
-| [**payout rule**](/sdk/resources/payout-rules/) | How does a partner **earn**? | `payout_rules:read` / `payout_rules:write` |
+| [**payout rule**](/sdk/resources/payout-rules/) | How does a entity **earn**? | `payout_rules:read` / `payout_rules:write` |
 | [**payout rail**](/sdk/resources/payout-rails/) | How does money physically **leave**? | `payout_rails:read` / `payout_rails:write` |
 | [**payout batch**](/sdk/resources/payout-batches/) | What actually **happened**, once? | `payouts:read` / `payouts:write` |
 
@@ -34,7 +34,7 @@ deliberate, and each has a section below.
 5. **`payouts.run` has two distinct outcomes** — a 409 you must fix, and a
    success that says nothing qualified. [Which is which](#5-run-has-two-outcomes)
 
-## Payout rules — how a partner earns
+## Payout rules — how a entity earns
 
 A rule is a standing promise: *for this program, this kind of activity is worth
 this much.* Three types, and the type decides which economics are **required**:
@@ -75,7 +75,7 @@ await boomin.payouts.rules.create({
 
 `revenue_split` always reads `gmv_cents` — it ignores `metricKey`, so do not send
 one. A `threshold_bonus` with `windowDays` measures the trailing window ending at
-`periodEnd`; without it, the partner's **all-time** total for that metric.
+`periodEnd`; without it, the entity's **all-time** total for that metric.
 
 ### Scope is a discriminated object
 
@@ -107,7 +107,7 @@ USD-specific word. `perUnitMinor: 500` with `currency: "usd"` is $5.00.
 
 ## The two rails of activity that feed a rule
 
-Boomin has two rails for getting partners working — an **evergreen program** and
+Boomin has two rails for getting entities working — an **evergreen program** and
 a **distribution** layered on it (see [the model](/concepts/model/)). Both land
 in the *same* metric vocabulary, which is why one rule can pay for both.
 
@@ -171,7 +171,7 @@ const rail = await boomin.payouts.rails.create({
 
 You render a CSV, upload it to PayPal or Wise (or hand it to finance), and then
 tell Boomin what happened with `confirm`. It needs no onboarding from your
-partners, which is exactly why it is the rail that works today.
+entities, which is exactly why it is the rail that works today.
 
 Valid `columns[].key` values are a closed set — `email`, `amount`,
 `amount_cents`, `currency`, `reference`, `note`, `name`. An unknown key would
@@ -185,14 +185,14 @@ csv_batch case.
 ### `stripe_connect` — configurable, not yet usable
 
 The `stripe_connect` rail exists in the schema and the API will accept a create
-call for it. **It cannot pay anyone today.** Partner disbursement over Connect
+call for it. **It cannot pay anyone today.** Entity disbursement over Connect
 needs a transfers-only Express capability that is not yet approved on Boomin's
 Stripe platform account, so:
 
 - there is **no `disburse` route** on the Platform API. It was deliberately left
   off rather than shipped as a route that always fails.
 - `payouts.connectStatus()` will report Stripe as configured while
-  `partnerAccountsPayoutsEnabled` stays at zero, because partners have no
+  `entityAccountsPayoutsEnabled` stays at zero, because entities have no
   onboarding path to complete.
 
 Configure `csv_batch` and plan around it. This page will change when the

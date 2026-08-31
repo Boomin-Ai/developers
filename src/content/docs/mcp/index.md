@@ -39,7 +39,7 @@ Both paths end with the same scoped platform token model. Tokens are revocable, 
 
 ## Skill packs
 
-`Referral Program Installer` is the default pack. It can diagnose setup, scaffold referral-first routes, verify install, read partner standing, and record a test event.
+`Referral Program Installer` is the default pack. It can diagnose setup, scaffold referral-first routes, verify install, read entity standing, and record a test event.
 
 `Program Operator` is admin-only and opt-in. It can update required channels, referral settings, program requirements, tiers, and run evaluation.
 
@@ -52,7 +52,7 @@ Referral installer:
 - `boomin.get_connect_config`
 - `boomin.scaffold_referral_first`
 - `boomin.verify_referral_install`
-- `boomin.get_partner_standing`
+- `boomin.get_entity_standing`
 - `boomin.record_test_event`
 
 Program operator:
@@ -78,7 +78,7 @@ Write tools use the same scoped platform token model, audit logs, create limits,
 Good prompts after install:
 
 ```text
-Use Boomin to add a partner referral program to this app.
+Use Boomin to add a entity referral program to this app.
 ```
 
 ```text

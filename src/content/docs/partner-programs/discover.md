@@ -21,7 +21,7 @@ The default answer is No. Running `init --list` against an existing program flip
 
 ## List from the dashboard
 
-Brand admins can toggle **List on Connect discover** at any time from the program dashboard at `boomin.ai` under **Partners**. Unlisting removes the program from the feed immediately; existing members are unaffected.
+Brand admins can toggle **List on Connect discover** at any time from the program dashboard at `boomin.ai` under **Entities**. Unlisting removes the program from the feed immediately; existing members are unaffected.
 
 Check the current state from the CLI:
 
@@ -71,4 +71,4 @@ curl "https://api.boomin.ai/v1/connect/discover?limit=20&offset=0"
 
 ## What creators see
 
-Creators browse the Discover feed at `boomin.ai/connect`, apply to a program, and track their applications and memberships in one place. Applications land in the brand's applications inbox on the Partners dashboard for approve/reject. See [In-app Dashboards](/partner-programs/dashboard/).
+Creators browse the Discover feed at `boomin.ai/connect`, apply to a program, and track their applications and memberships in one place. Applications land in the brand's applications inbox on the Entities dashboard for approve/reject. See [In-app Dashboards](/partner-programs/dashboard/).

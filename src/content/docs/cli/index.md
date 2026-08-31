@@ -28,7 +28,7 @@ browser, never typed into the terminal.
 ## Init
 
 ```bash
-npx @boomin/cli init --program-name "Launch Partners" --yes
+npx @boomin/cli init --program-name "Launch Entities" --yes
 ```
 
 `init` logs in if needed, selects or creates an organization and program,
@@ -68,7 +68,7 @@ The secret is shown once. See [Token Commands](/cli/tokens/) and
 ## Drive the distribution tree
 
 Seven groups over the live Platform API — `distribution`, `enrollment`,
-`partnership`, `connection`, `payout`, `webhook`, `events`:
+`relationship`, `connection`, `payout`, `webhook`, `events`:
 
 ```bash
 npx @boomin/cli enrollment invite --program prog_... --email creator@example.com
@@ -99,8 +99,8 @@ npx @boomin/cli referral init --framework next --auth custom --write
 npx @boomin/cli handoff provision
 ```
 
-`referral init` generates the partner join/status routes, the `/r/[code]`
-redirect tracker, and a starter `/partner` page. `handoff provision` mints the
+`referral init` generates the entity join/status routes, the `/r/[code]`
+redirect tracker, and a starter `/entity` page. `handoff provision` mints the
 program's [signed-handoff](/partner-connect/signed-handoff/) secret and writes it
 to `.env.local` (`--rotate` replaces it).
 

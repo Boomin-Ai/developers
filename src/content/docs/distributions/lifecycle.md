@@ -132,7 +132,7 @@ Three different pauses exist, at three different blast radii:
 | --- | --- |
 | `deployments` pause (API) | One channel |
 | `distributions.pause` | Every deployment in this distribution |
-| `partnerships.pause` | That partner's promo **links** across every program — never the shared channel |
+| `relationships.pause` | That entity's promo **links** across every program — never the shared channel |
 
 In all three, links keep resolving and attribution continues. What stops is
 reward eligibility — decided at the event's `occurredAt`, so a late-arriving

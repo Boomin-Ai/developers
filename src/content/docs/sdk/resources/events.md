@@ -90,9 +90,9 @@ webhook `enabledEvents` entry.
 `relationship.created` · `relationship.activated` · `relationship.paused` ·
 `relationship.resumed` · `relationship.ended`
 
-The canonical family (RELATIONSHIP_CORE naming). The legacy `partnership.*`
+The canonical family (RELATIONSHIP_CORE naming). The legacy `relationship.*`
 spellings remain valid **subscription** entries forever — an endpoint
-subscribed to `partnership.paused` receives the canonical
+subscribed to `relationship.paused` receives the canonical
 `relationship.paused` event — but new emissions and new subscriptions should
 use `relationship.*`.
 

@@ -6,7 +6,7 @@ description: Create, validate, launch, pause, resume, and cancel the intent obje
 A **distribution** is intent: a coordinated business objective that fans out
 into [deployments](/sdk/resources/deployments/). It is Boomin's `PaymentIntent`.
 It never says "post to Instagram" — it says what outcome you want and which
-programs supply eligible partners.
+programs supply eligible entities.
 
 ```js
 const distribution = await boomin.distributions.create({
@@ -45,7 +45,7 @@ draft.
   "objective": "launch",
   "description": null,
   "status": "active",
-  "spec": { "plan": { "partner": { "slots": [ ... ] } } },
+  "spec": { "plan": { "entity": { "slots": [ ... ] } } },
   "planHash": "…",
   "programs": ["prog_..."],
   "budget": { "mode": "funded", "asset": "credit", "total": 50000, "consumed": 12000, "released": 0 },
@@ -117,13 +117,13 @@ budget: { mode: "funded", asset: "credit", total: 50000 }
 ### spec
 
 The deployment plan. Omit it entirely and you get the default: one
-partner-program referral-link slot — a single channel per associated program,
+entity-program referral-link slot — a single channel per associated program,
 whose adapter mints one promo link per approved enrollment.
 
 ```js
 spec: {
   plan: {
-    partner: {
+    entity: {
       enrollment_policy: "all_approved",
       slots: [
         { name: "primary", medium: "referral", channel: "boomin", format: "referral_link" },
@@ -134,11 +134,11 @@ spec: {
 ```
 
 Slots default to `name: "primary"` (then `slot_1`, `slot_2`, …), and an omitted
-`plan.partner.slots` yields exactly the slot above. `enrollment_policy` defaults
+`plan.entity.slots` yields exactly the slot above. `enrollment_policy` defaults
 to `all_approved`.
 
 Only combinations a registered adapter supports will validate. In this release
-that is exactly one: `partner_program` / `referral` / `boomin` / `referral_link`.
+that is exactly one: `program` / `referral` / `boomin` / `referral_link`.
 
 ## update
 

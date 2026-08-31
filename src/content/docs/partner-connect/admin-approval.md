@@ -27,7 +27,7 @@ connection_status = connected
 
 ## Admin queue
 
-The Boomin dashboard under `Connect > Partners` shows:
+The Boomin dashboard under `Connect > Entities` shows:
 
 - Name and email.
 - Instagram username, avatar, and follower count.

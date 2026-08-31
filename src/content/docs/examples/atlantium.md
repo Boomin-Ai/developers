@@ -68,7 +68,7 @@ The surface's referral base points at this route, so the `referral.url` creators
 
 The landing page stores `?ref=` locally with a 30-day window and forwards it as `referral_code` when a visitor completes signup. Atlantium's worker then records a `referral_count` event — only when the verification minted a **new** user, and keyed by user id (`atlantium_signup_<userId>`), so Boomin's event uniqueness makes repeat logins and replays structurally unable to double-credit. Attribution is best-effort and never blocks auth.
 
-Clicks and signups feed the same qualification engine that drives the program's tiers (for Atlantium: entry requires a connected Instagram; Partner requires 10 referred signups; Elite requires $1,000 referred GMV), so tier changes happen automatically as referrals land.
+Clicks and signups feed the same qualification engine that drives the program's tiers (for Atlantium: entry requires a connected Instagram; Entity requires 10 referred signups; Elite requires $1,000 referred GMV), so tier changes happen automatically as referrals land.
 
 ## Channel requirement
 
@@ -79,7 +79,7 @@ The surface sets `requiredChannels: ["instagram"]`, so signed-handoff members ar
 Admins review creators in Boomin:
 
 ```txt
-Connect > Partners > Members
+Connect > Entities > Members
 ```
 
 The members table shows account-level creator signal — followers, account type, post count, referral and GMV rollups, and per-requirement qualification state — synced daily from each creator's connected account. Only account-level metrics are read; Boomin never enumerates a creator's posts unless a campaign submission requires verifying a specific post.

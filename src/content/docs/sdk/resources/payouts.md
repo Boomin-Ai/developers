@@ -3,7 +3,7 @@ title: payouts
 description: Compute the period ledger, export the operator CSV, and check disbursement readiness.
 ---
 
-**Payouts** is the money-out ledger: immutable rows per partner per period,
+**Payouts** is the money-out ledger: immutable rows per entity per period,
 grouped into batches by a payout rail.
 
 ```js
@@ -23,11 +23,11 @@ Configuration lives on three nested clients, each with its own page:
 
 | Client | Covers |
 | --- | --- |
-| [`payouts.rules`](/sdk/resources/payout-rules/) | How a partner **earns** |
+| [`payouts.rules`](/sdk/resources/payout-rules/) | How a entity **earns** |
 | [`payouts.rails`](/sdk/resources/payout-rails/) | How money physically **leaves** |
 | [`payouts.batches`](/sdk/resources/payout-batches/) | One frozen disbursement run |
 
-Start with [Getting partners paid](/payouts/) for the model.
+Start with [Getting entities paid](/payouts/) for the model.
 
 | Method | Route | Scope |
 | --- | --- | --- |
@@ -168,7 +168,7 @@ Omit both period fields to sweep every eligible row regardless of period.
 | --- | --- |
 | `status` | `pending` `awaiting_account` `processing` `paid` `failed` |
 | `periodStart` / `periodEnd` | `YYYY-MM-DD` exact match |
-| `partner` | A `ptnr_...` id — one recipient's ledger |
+| `entity` | A `ent_...` id — one recipient's ledger |
 | `limit` | 1–100, default 20 |
 | `startingAfter` | A `po_...` cursor |
 
@@ -179,12 +179,12 @@ for await (const payout of boomin.payouts.list({ status: "awaiting_account" })) 
 ```
 
 `awaiting_account` is the interesting bucket: money is owed, but the recipient
-has no usable payout destination. Because partner Connect onboarding is not yet
+has no usable payout destination. Because entity Connect onboarding is not yet
 available, it is also the **normal** status — and `csv_batch` batches those rows
 anyway.
 
-Filtering by `partner` also excludes every user-recipient row, since a payout
-row has exactly one recipient (user XOR partner).
+Filtering by `entity` also excludes every user-recipient row, since a payout
+row has exactly one recipient (user XOR entity).
 
 ## connectStatus
 
@@ -200,8 +200,8 @@ const status = await boomin.payouts.connectStatus();
   ],
   "stripe": {
     "configured": true,
-    "partnerAccounts": 42,
-    "partnerAccountsPayoutsEnabled": 0
+    "entityAccounts": 42,
+    "entityAccountsPayoutsEnabled": 0
   }
 }
 ```
@@ -214,9 +214,9 @@ Rail entries carry identity and state **only, never `config`** — this is a
 config from [`payouts.rails.list()`](/sdk/resources/payout-rails/), which needs
 `payout_rails:read`.
 
-:::caution[`partnerAccountsPayoutsEnabled` will read 0]
-Partner disbursement over Stripe Connect needs a transfers-only Express
-capability that is not yet approved on Boomin's platform account, so partners
+:::caution[`entityAccountsPayoutsEnabled` will read 0]
+Entity disbursement over Stripe Connect needs a transfers-only Express
+capability that is not yet approved on Boomin's platform account, so entities
 have no onboarding path to finish. `stripe.configured` reports whether a Stripe
 key is present, not whether anyone can be paid through it. There is no
 `disburse` route on the Platform API. Use the `csv_batch` rail.

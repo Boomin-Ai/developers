@@ -7,7 +7,7 @@ An **entity** is a durable identity capable of holding a relationship with your
 brand: a creator, an affiliate, an advisor, an agency, another company. Entities
 exist independently of any one program and independently of any one brand.
 
-This is the canonical name for what the API called a **partner**. The old
+This is the canonical name for what the API called a **entity**. The old
 spelling is an alias forever — see the note below.
 
 You never create an entity directly. Inviting someone by email
@@ -61,11 +61,11 @@ not the identity: [assertions](/sdk/resources/assertions/) are your claims,
 [operating types](/sdk/resources/operating-types/) are the capacity an
 enrollment operates in. The identity itself stays thin on purpose.
 
-:::note[`partners` is the deprecated spelling — alias forever]
-`boomin.partners` still works and always will: it is a deprecated getter that
+:::note[`entities` is the deprecated spelling — alias forever]
+`boomin.entities` still works and always will: it is a deprecated getter that
 **delegates** to `boomin.entities`, so calls ride the canonical `/entities`
-routes. Old `ptnr_...` ids are accepted everywhere forever; responses emit
-`ent_...` and `object: "entity"`. The legacy `partners:read` scope stays
+routes. Old `ent_...` ids are accepted everywhere forever; responses emit
+`ent_...` and `object: "entity"`. The legacy `entities:read` scope stays
 honored (canonical: `entities:read`). Webhook payloads stored before the flip
 keep deserializing.
 :::
@@ -75,7 +75,7 @@ keep deserializing.
 | Entry point | What happens |
 | --- | --- |
 | `enrollments.create({ email })` | Entity upserted by email, relationship opened `pending`, enrollment created `(pending, active)` |
-| [Partner Connect](/partner-connect/browser-sdk/) OTP join | Same, driven from the browser by the partner |
+| [Partner Connect](/partner-connect/browser-sdk/) OTP join | Same, driven from the browser by the entity |
 | [Signed Handoff](/partner-connect/signed-handoff/) | Same, with your app vouching for the identity instead of an OTP — and binding the `(issuer, externalUserId)` pair that [assertions](/sdk/resources/assertions/) can address |
 | [Discover](/partner-programs/discover/) application | Same, initiated from the public feed |
 

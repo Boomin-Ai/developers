@@ -88,8 +88,8 @@ npx @boomin/cli mcp install [--pack <name>]
 npx @boomin/cli skill install [--target claude|codex] [--source <path>] [--yes]
 ```
 
-`referral init` generates the partner join/status routes, the `/r/[code]`
-redirect tracker, and a starter `/partner` page.
+`referral init` generates the entity join/status routes, the `/r/[code]`
+redirect tracker, and a starter `/entity` page.
 
 `handoff provision` mints the program's [signed-handoff](/partner-connect/signed-handoff/)
 signing secret and writes it to `.env.local`; `--rotate` mints a new one and
@@ -114,7 +114,7 @@ smoke objects with `--cleanup`, and revokes the temporary token.
 ## Platform v1 groups
 
 Seven groups over the live `/v1/platform` tree: `distribution`, `enrollment`,
-`partnership`, `connection`, `payout`, `webhook`, `events`. `payout` has three
+`relationship`, `connection`, `payout`, `webhook`, `events`. `payout` has three
 sub-groups of its own — `rules`, `rails`, `batches` — mirroring
 `/payouts/{rules,rails,batches}`.
 
@@ -166,8 +166,8 @@ npx @boomin/cli distribution launch dist_...
 ### enrollment
 
 ```bash
-npx @boomin/cli enrollment invite --program prog_... --email partner@example.com [--name "Ada"]
-npx @boomin/cli enrollment invite --program prog_... --partner ptnr_...
+npx @boomin/cli enrollment invite --program prog_... --email entity@example.com [--name "Ada"]
+npx @boomin/cli enrollment invite --program prog_... --entity ent_...
 npx @boomin/cli enrollment approve <enr_id>
 npx @boomin/cli enrollment reject <enr_id>
 npx @boomin/cli enrollment list [--program prog_...] [--status active|paused|archived] [--approval-status pending|approved|rejected]
@@ -175,23 +175,23 @@ npx @boomin/cli enrollment get <enr_id>
 ```
 
 `invite` also accepts `--referral-code <code>` and `--metadata <json>`. One of
-`--email` or `--partner` is required. Needs `enrollments:read` /
+`--email` or `--entity` is required. Needs `enrollments:read` /
 `enrollments:write`.
 
-### partnership
+### relationship
 
 ```bash
-npx @boomin/cli partnership list [--status pending|active|paused|ended]
-npx @boomin/cli partnership get <pship_id>
-npx @boomin/cli partnership pause <pship_id>
-npx @boomin/cli partnership resume <pship_id>
-npx @boomin/cli partnership end <pship_id>
+npx @boomin/cli relationship list [--status pending|active|paused|ended]
+npx @boomin/cli relationship get <rel_id>
+npx @boomin/cli relationship pause <rel_id>
+npx @boomin/cli relationship resume <rel_id>
+npx @boomin/cli relationship end <rel_id>
 ```
 
-`get` prints the partnership followed by its enrollments. `pause` and `resume`
+`get` prints the relationship followed by its enrollments. `pause` and `resume`
 report the promo-link codes they moved (`links_paused` / `links_resumed`) plus
 the channel ids those links live on — they never pause the shared deployment.
-Needs `partnerships:read` / `partnerships:write`.
+Needs `relationships:read` / `relationships:write`.
 
 ### connection
 
@@ -229,12 +229,12 @@ than leaving an empty path behind.
 `payout connect` prints configured rails plus the Stripe Connect account
 rollup — identity and state only, never rail `config`.
 
-Needs `payouts:read` / `payouts:write`. Concepts: [Getting partners
+Needs `payouts:read` / `payouts:write`. Concepts: [Getting entities
 paid](/payouts/).
 
 ### payout rules
 
-How a partner **earns**. Needs `payout_rules:read` / `payout_rules:write`.
+How a entity **earns**. Needs `payout_rules:read` / `payout_rules:write`.
 
 ```bash
 npx @boomin/cli payout rules list [--program prog_...] [--status active|paused|archived] \
@@ -376,7 +376,7 @@ The operational feed out, ordered by `seq`. Needs `events:read`.
 ## Relationship stack (0.7.0)
 
 The groups over the [relationship model](/concepts/model/): canonical
-`relationship` (with `partnership` as an alias forever),
+`relationship` (with `relationship` as an alias forever),
 [assertions](/sdk/resources/assertions/),
 [operating types](/sdk/resources/operating-types/),
 [metric keys](/sdk/resources/metric-keys/), standing tests, and declarative
@@ -390,8 +390,8 @@ npx @boomin/cli relationship get rel_...
 npx @boomin/cli relationship pause|resume|end rel_...
 ```
 
-Alias: `partnership` — same handler, canonical wire. Needs
-`relationships:read` / `relationships:write` (legacy `partnerships:*` honored).
+Alias: `relationship` — same handler, canonical wire. Needs
+`relationships:read` / `relationships:write`.
 
 ### assertion
 

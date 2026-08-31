@@ -1,10 +1,10 @@
 ---
 title: Boomin Developers
-description: Programmable distribution infrastructure — partnerships, distributions, deployments, and performance through @boomin/sdk and the Platform API.
+description: Programmable distribution infrastructure — relationships, distributions, deployments, and performance through @boomin/sdk and the Platform API.
 template: splash
 hero:
   title: Programmable distribution infrastructure.
-  tagline: Declare a business objective. Boomin fans it out across your partners, tracks what happened, and pays them. One SDK, one API, no provider plumbing.
+  tagline: Declare a business objective. Boomin fans it out across your entities, tracks what happened, and pays them. One SDK, one API, no provider plumbing.
   image:
     file: ../../assets/boomin-mark.png
   actions:
@@ -46,12 +46,12 @@ fans it out into **Deployments** and reports back what actually happened.
 ## Two rails
 
 **An evergreen program** needs no distribution at all. Create a program, invite
-partners, approve them — each approved enrollment gets a referral code,
+entities, approve them — each approved enrollment gets a referral code,
 qualification and tiers evaluate continuously, rewards accrue. That is a
 complete product on its own.
 
 **A distribution** layers a time-boxed, funded, measurable push on top of the
-same partners, with its own promo link per partner on each deployment channel
+same entities, with its own promo link per entity on each deployment channel
 and its own budget drawdown.
 
 They compose. [Read the model →](/concepts/model/)
@@ -90,7 +90,7 @@ Interactive references for [Platform](/api/platform/) and
 
 ## What Boomin owns
 
-Partner enrollment, email OTP, Instagram OAuth, durable partnerships, approval,
+Entity enrollment, email OTP, Instagram OAuth, durable relationships, approval,
 referral codes, qualification and tiers, distribution fan-out, attribution,
 budgets, performance rollups, payouts, webhooks, and scoped server automation.
 
@@ -104,9 +104,9 @@ route.
   resources, typed errors, cursor pagination.
 - Partner Connect API at `https://api.boomin.ai/v1/connect`.
 - `@boomin/sdk`, `@boomin/connect`, and `@boomin/cli` 0.3.0.
-- Public Discover feed at `GET /v1/connect/discover`; partners browse and apply
+- Public Discover feed at `GET /v1/connect/discover`; entities browse and apply
   at `boomin.ai/connect`.
-- Hosted Partners dashboard for brands at `boomin.ai`.
+- Hosted Entities dashboard for brands at `boomin.ai`.
 - CLI browser login through `https://boomin.ai/cli/login`.
 
 ## Agent entrypoints

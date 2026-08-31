@@ -7,7 +7,7 @@ A **relationship** is the durable bond between one brand and one
 [entity](/sdk/resources/entities/). Exactly one exists per `(brand, entity)`
 pair, and it outlives every individual program.
 
-This is the canonical name for what the API called a **partnership**. The old
+This is the canonical name for what the API called a **relationship**. The old
 spelling is an alias forever — see the note below.
 
 ```js
@@ -30,7 +30,7 @@ const relationship = await boomin.relationships.retrieve("rel_...");
 {
   "id": "rel_...",
   "object": "relationship",
-  "partner": { "id": "ent_...", "name": "Creator", "email": "creator@example.com" },
+  "entity": { "id": "ent_...", "name": "Creator", "email": "creator@example.com" },
   "status": "active",
   "rights": {},
   "permissions": {},
@@ -47,13 +47,13 @@ const relationship = await boomin.relationships.retrieve("rel_...");
 `retrieve` additionally embeds `enrollments: [...]` — every enrollment this
 relationship holds, across all your programs.
 
-:::note[`partnerships` is the deprecated spelling — alias forever]
-`boomin.partnerships` still works and always will: it is a deprecated getter
+:::note[`relationships` is the deprecated spelling — alias forever]
+`boomin.relationships` still works and always will: it is a deprecated getter
 that **delegates** to `boomin.relationships`, so calls ride the canonical
-`/relationships` routes. Old `pship_...` ids are accepted everywhere forever;
-responses emit `rel_...` and `object: "relationship"`. Legacy `partnerships:*`
+`/relationships` routes. Old `rel_...` ids are accepted everywhere forever;
+responses emit `rel_...` and `object: "relationship"`. Legacy `relationships:*`
 scopes stay honored (canonical: `relationships:*`), and webhook subscriptions
-naming `partnership.*` still receive the canonical `relationship.*` events.
+naming `relationship.*` still receive the canonical `relationship.*` events.
 :::
 
 ## Status
@@ -85,7 +85,7 @@ An unrecognized `status` is `invalid_status` (400), not an empty list.
 `pause()` is the broad brake for one entity. It:
 
 - pauses that entity's **promo links** across every program — never the shared
-  deployment channel, so other partners on the same channel keep running,
+  deployment channel, so other entities on the same channel keep running,
 - blocks the entity from receiving **new** links,
 - leaves enrollments and connection grants **untouched** — pause never silently
   rewrites enrollment status, so resume is exact,
@@ -111,7 +111,7 @@ grants** — resolved at the event's `occurred_at`, not at ingestion, so a
 late-arriving provider sync cannot smuggle a paused-period conversion into
 rewards.
 
-Billing is unaffected: links still resolve and attribute, so the partner still
+Billing is unaffected: links still resolve and attribute, so the entity still
 counts as active that month. `end()` (or archiving the enrollment) is the
 billing exit. See [Pricing](/pricing/).
 :::

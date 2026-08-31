@@ -117,8 +117,8 @@ timeouts are retried too; 4xx (other than 429) never is.
 ### Not found
 
 `brand_not_found`, `distribution_not_found`, `deployment_not_found`,
-`enrollment_not_found`, `partnership_not_found`, `connection_not_found`,
-`operation_not_found`, `program_not_found`, `partner_not_found`,
+`enrollment_not_found`, `relationship_not_found`, `connection_not_found`,
+`operation_not_found`, `program_not_found`, `entity_not_found`,
 `payout_batch_not_found`, `webhook_endpoint_not_found` — all **404**.
 
 These are returned identically for "does not exist", "belongs to another
@@ -178,13 +178,13 @@ it returns the existing control operation rather than erroring.
 | `payout_export_format_invalid` | 400 | The rail's `config.format` is not a known export format. | Use `paypal_payouts_csv` or `wise_batch_csv`. |
 | `payout_export_unconfigured` | 400 | The export has no usable destination configuration. The CLI raises the same code when a batch exported but no presigned URL came back, so `--out` cannot be written. | The file exists but was not delivered — check the rail config and storage credentials. |
 
-Full context on each: [Getting partners paid](/payouts/).
+Full context on each: [Getting entities paid](/payouts/).
 
 ### Billing
 
 | Code | HTTP | What it means | Recover by |
 | --- | --- | --- | --- |
-| `band_limit_reached` | 402 | The organization's active-partner band is full. | Upgrade the band; see [Pricing](/pricing/). |
+| `band_limit_reached` | 402 | The organization's active-entity band is full. | Upgrade the band; see [Pricing](/pricing/). |
 
 ### Funding
 

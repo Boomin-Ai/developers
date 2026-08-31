@@ -42,7 +42,7 @@ Payout **execution** and payout **configuration** are separate grants. Neither
 
 | Scope | Purpose |
 | --- | --- |
-| `payout_rules:read` | Read payout rules (how a partner earns). |
+| `payout_rules:read` | Read payout rules (how a entity earns). |
 | `payout_rules:write` | Create, update, or archive payout rules. |
 | `payout_rails:read` | Read payout rails and their delivery `config`. |
 | `payout_rails:write` | Configure payout rails (where money physically lands). |
@@ -58,7 +58,7 @@ For the same reason `payouts.connectStatus()` — a `payouts:read` surface —
 reports rail identity and state but never `config`. Read config from
 `GET /payouts/rails`, which needs `payout_rails:read`.
 
-See [Getting partners paid](/payouts/#scopes).
+See [Getting entities paid](/payouts/#scopes).
 
 ## Relationships
 
@@ -81,7 +81,7 @@ See [Getting partners paid](/payouts/#scopes).
 | `connections:write` | Revoke a connection or the brand's grants on it. |
 
 Legacy spellings stay honored forever on already-issued tokens:
-`partnerships:read|write` (→ `relationships:*`), `partners:read`
+`relationships:read|write` (→ `relationships:*`), `entities:read`
 (→ `entities:read`), and `program_members:read|approve` (→ the enrollment
 scopes).
 

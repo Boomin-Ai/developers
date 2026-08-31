@@ -3,7 +3,7 @@ title: programs
 description: Read programs and configure their requirements, tiers, Partner Connect surface, and signed-handoff issuers.
 ---
 
-A **program** is the container partners enroll into. It owns the entry
+A **program** is the container entities enroll into. It owns the entry
 requirements, the tier ladder, the Partner Connect surface, and — through its
 enrollments — the referral codes that make the evergreen rail work.
 
@@ -30,7 +30,7 @@ the app. Everything below **is** served.
 {
   "id": "prog_...",
   "object": "program",
-  "name": "Launch Partners",
+  "name": "Launch Entities",
   "type": "performance",
   "description": null,
   "status": "active",
@@ -138,7 +138,7 @@ Lists come back ordered by ascending rank.
 
 The [Partner Connect](/partner-connect/browser-sdk/) surface: the public key
 your browser code uses, the origins allowed to call it, and what happens when a
-partner joins.
+entity joins.
 
 ```js
 const config = await boomin.programs.connectConfig.retrieve("prog_...");

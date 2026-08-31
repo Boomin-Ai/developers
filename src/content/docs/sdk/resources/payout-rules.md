@@ -1,6 +1,6 @@
 ---
 title: payouts.rules
-description: How a partner earns — three rule types, a discriminated scope, and economics that freeze at creation.
+description: How a entity earns — three rule types, a discriminated scope, and economics that freeze at creation.
 ---
 
 A **payout rule** is a standing promise: for this program, this kind of activity
@@ -93,7 +93,7 @@ not send one.
 | Field | Applies to | Meaning |
 | --- | --- | --- |
 | `currency` | all | 3-letter code, lower-cased. Default `usd`. |
-| `windowDays` | `threshold_bonus` | 1–3650. Measure the trailing window ending at `periodEnd`. Omit for the partner's **all-time** total. |
+| `windowDays` | `threshold_bonus` | 1–3650. Measure the trailing window ending at `periodEnd`. Omit for the entity's **all-time** total. |
 | `windowKey` | `threshold_bonus` | A label for the window, ≤ 60 chars. |
 
 ### metricKey vocabulary
@@ -108,9 +108,9 @@ product_usage_count                 channel_connected   manual_approval
 event_registration                  template_install
 ```
 
-Which of these a partner can actually accumulate — and how performance events
+Which of these a entity can actually accumulate — and how performance events
 recorded against a deployment project into them — is on
-[Getting partners paid](/payouts/#the-two-rails-of-activity-that-feed-a-rule).
+[Getting entities paid](/payouts/#the-two-rails-of-activity-that-feed-a-rule).
 
 ### Money is minor units
 

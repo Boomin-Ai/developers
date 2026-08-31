@@ -42,16 +42,16 @@ three calls, in this order:
 
 ```js
 // 1. Email a one-time code to the address.
-await Boomin.requestOtp({ email: "partner@example.com", name: "Partner" });
+await Boomin.requestOtp({ email: "entity@example.com", name: "Entity" });
 
-// 2. Exchange the code for a partner token. The SDK stores it for later calls.
-await Boomin.verifyOtp({ email: "partner@example.com", code: "123456" });
+// 2. Exchange the code for a entity token. The SDK stores it for later calls.
+await Boomin.verifyOtp({ email: "entity@example.com", code: "123456" });
 
-// 3. Join the program, authenticated as the now-verified partner.
-await Boomin.joinProgram({ name: "Partner" });
+// 3. Join the program, authenticated as the now-verified entity.
+await Boomin.joinProgram({ name: "Entity" });
 ```
 
-Already holding a partner token from a signed server handoff? Pass it straight in and skip
+Already holding a entity token from a signed server handoff? Pass it straight in and skip
 the first two steps:
 
 ```js
@@ -61,15 +61,15 @@ await Boomin.joinProgram({ authToken: tokenFromHandoff });
 ### Breaking change in @boomin/connect 0.2.0
 
 `joinProgram` used to accept an `email` and create the member from it. It no longer does, and
-`POST /v1/connect/join` now requires a partner bearer token, so an unverified email cannot
+`POST /v1/connect/join` now requires a entity bearer token, so an unverified email cannot
 produce a program member. Calling `joinProgram()` with no token available rejects immediately —
-client-side, before any network request — with `error.code === "missing_partner_token"`:
+client-side, before any network request — with `error.code === "missing_entity_token"`:
 
 ```js
 try {
   await Boomin.joinProgram();
 } catch (error) {
-  if (error.code === "missing_partner_token") {
+  if (error.code === "missing_entity_token") {
     // Send them through requestOtp / verifyOtp first.
   }
 }
@@ -85,7 +85,7 @@ Instagram OAuth session flow are unchanged.
 Boomin.init(options)
 Boomin.requestOtp(options)
 Boomin.verifyOtp(options)
-Boomin.joinProgram(options)      // requires a verified partner token
+Boomin.joinProgram(options)      // requires a verified entity token
 Boomin.getCurrentCreator()
 Boomin.getProgramStatus(options)
 Boomin.connectInstagram(options)

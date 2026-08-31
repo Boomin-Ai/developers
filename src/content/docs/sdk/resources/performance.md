@@ -36,7 +36,7 @@ const summary = await boomin.performance.summary({ distribution: "dist_..." });
 ```js
 const result = await boomin.performance.events.create({
   deployment: "dep_...",            // required
-  enrollment: "enr_...",            // optional — WHICH PARTNER earned it
+  enrollment: "enr_...",            // optional — WHICH ENTITY earned it
   type: "purchase",                 // required, ≤ 64 chars — your vocabulary
   source: "checkout",               // optional, ≤ 64 chars, default "platform_api"
   occurredAt: "2026-08-01T12:00:00Z", // optional ISO-8601 with offset; default now
@@ -53,11 +53,11 @@ Raw HTTP bodies use the snake_case spellings (`value_minor`,
 `external_event_id`); the SDK converts.
 
 `deployment` names the channel — from it Boomin derives the distribution and
-the program. **Which partner earned the event is the event's own `enrollment`
+the program. **Which entity earned the event is the event's own `enrollment`
 field**: the `?ref=` link paths stamp it themselves, and a first-party
 integration recording its own conversions passes it explicitly. Omit it for
 genuinely unattributed measurement (owned/paid channels). You never send a
-partner or program id — those are derived, which is what keeps them from
+entity or program id — those are derived, which is what keeps them from
 drifting.
 
 :::danger[One of `idempotencyKey` or `externalEventId` is required]
@@ -103,7 +103,7 @@ spine, where it feeds qualification and rewards.
 ### occurredAt matters
 
 Reward eligibility is decided at `occurredAt`, not at ingestion. An event that
-*happened* while an enrollment or partnership was paused is permanently
+*happened* while an enrollment or relationship was paused is permanently
 ineligible for reward grants even if it arrives days later. Send a truthful
 `occurredAt` when you are backfilling.
 
@@ -140,6 +140,6 @@ the brand-wide rollup.
 | Distribution execution | Performance events | Deployment and distribution rollups |
 
 Distribution execution that is program-relevant **also projects** into the
-program spine, so a partner's qualification keeps accruing whether the activity
+program spine, so a entity's qualification keeps accruing whether the activity
 came through the evergreen rail or through a launched distribution. Nothing is
 migrated between the two; the projection is permanent.

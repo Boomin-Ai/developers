@@ -83,7 +83,7 @@ List calls resolve one page and are *also* async-iterable across every page
 
 ```js
 // one page
-const page = await boomin.partnerships.list({ limit: 20 });
+const page = await boomin.relationships.list({ limit: 20 });
 console.log(page.object, page.data.length, page.hasMore);
 // "list"  20  true
 
@@ -132,8 +132,6 @@ Ids are returned with a type prefix and accepted with or without it:
 | Prefix | Resource |
 | --- | --- |
 | `prog_` | program |
-| `ptnr_` | partner |
-| `pship_` | partnership |
 | `enr_` | enrollment |
 | `dist_` | distribution |
 | `dep_` | deployment |
@@ -167,7 +165,7 @@ every `webhooks.endpoints.*` method still resolves to the bare endpoint.
 
 A handful of reads return the bare resource plus a companion field:
 `distributions.validate` adds `valid` and `errors`;
-`partnerships.retrieve` adds `enrollments`;
+`relationships.retrieve` adds `enrollments`;
 `payouts.batches.retrieve` adds `items` and `downloadUrl`;
 `payouts.batches.create` adds `items` and `skipped`;
 `performance.events.create` adds `duplicate` and `projected`.
@@ -185,8 +183,8 @@ Every non-2xx raises a subclass of `BoominError` carrying `code`, `status`,
 | Client | Methods |
 | --- | --- |
 | [`programs`](/sdk/resources/programs/) | `create` `retrieve` `update` `list` `standingPreview` + nested `requirements` / `tiers` / `connectConfig` / `handoffConfig` |
-| [`entities`](/sdk/resources/entities/) | `retrieve` `list` (canonical; deprecated `partners` delegates here) |
-| [`relationships`](/sdk/resources/relationships/) | `list` `retrieve` `pause` `resume` `end` `updatePermissions` (canonical; deprecated `partnerships` delegates here) |
+| [`entities`](/sdk/resources/entities/) | `retrieve` `list` (canonical; deprecated `entities` delegates here) |
+| [`relationships`](/sdk/resources/relationships/) | `list` `retrieve` `pause` `resume` `end` `updatePermissions` (canonical; deprecated `relationships` delegates here) |
 | [`assertions`](/sdk/resources/assertions/) | `create` `revoke` `list` `retrieveEvent` — claim-addressed tenant truth |
 | [`operatingTypes`](/sdk/resources/operating-types/) | `create` `retrieve` `update` `list` `archive` — capacity vocabulary |
 | [`metricKeys`](/sdk/resources/metric-keys/) | `create` `retrieve` `update` `list` `archive` — tenant `x:` metrics |

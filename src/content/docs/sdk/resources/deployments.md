@@ -4,9 +4,9 @@ description: Execution truth — one concrete thing running somewhere, with desi
 ---
 
 A **deployment** is execution truth: one channel of execution, one per
-(distribution × program × planned slot). It is never a person — the partners it
+(distribution × program × planned slot). It is never a person — the entities it
 reaches are the promo links the adapter mints beneath it, one per approved
-partner.
+entity.
 
 ```js
 const deployment = await boomin.deployments.retrieve("dep_...");
@@ -29,11 +29,11 @@ for await (const dep of boomin.deployments.list({ distribution: "dist_..." })) {
   "object": "deployment",
   "distribution": "dist_...",
   "deploymentKey": "program_<program-id>:boomin:referral_link:primary",
-  "mode": "partner_program",
+  "mode": "program",
   "medium": "referral",
   "channel": "boomin",
   "format": "referral_link",
-  "adapter": "boomin_partnership",
+  "adapter": "boomin_relationship",
   "status": "active",
   "observedStatus": "live",
   "desiredState": {},
@@ -57,9 +57,9 @@ Raw HTTP responses use the snake_case spellings (`deployment_key`,
 `externalIds` / `desiredState` / `observedState` are adapter-owned and pass
 through verbatim.
 
-There is no `partnership` or `enrollment` field: a deployment is a channel of
+There is no `relationship` or `enrollment` field: a deployment is a channel of
 execution, so it names the **program** it runs for and never a person. The
-answer to "which partner?" is "all of them, via the links" — per-partner
+answer to "which entity?" is "all of them, via the links" — per-entity
 attribution reads off
 [`PerformanceEvent.enrollment`](/sdk/resources/performance/).
 
@@ -91,13 +91,13 @@ launch retries and resumes idempotent at the deployment level.
 
 ## Attribution
 
-The channel carries one promo link per approved partner — the adapter mints
+The channel carries one promo link per approved entity — the adapter mints
 them at launch, distinct from each enrollment's evergreen program
 `referralCode`. The link codes land in `externalIds` (`promo_link_count`,
 `codes`).
 
 Two distributions sharing one program still credit **separately**, because each
-has its own channel and its own links. Which *partner* earned a conversion is
+has its own channel and its own links. Which *entity* earned a conversion is
 the event's own `enrollment` field, stamped by the `?ref=` link paths — see
 [performance](/sdk/resources/performance/).
 
@@ -107,14 +107,14 @@ the event's own `enrollment` field, stamped by the `?ref=` link paths — see
 | --- | --- |
 | `distribution` | A `dist_...` id — the filter you almost always want |
 | `program` | A `prog_...` id — every channel running for that program |
-| `mode` | `owned` \| `partner_program` \| `paid` |
+| `mode` | `owned` \| `program` \| `paid` |
 | `status` | Desired status: `active` \| `paused` \| `canceled` |
 | `limit` | 1–100, default 20 |
 | `startingAfter` | A `dep_...` cursor |
 
-There is no `partnership` filter — a channel names no partner, so it would
-answer every query with an empty page. "This partner's channels" is `program`
-plus the partner's own enrollment.
+There is no `relationship` filter — a channel names no entity, so it would
+answer every query with an empty page. "This entity's channels" is `program`
+plus the entity's own enrollment.
 
 ## Pausing one deployment
 
@@ -149,4 +149,4 @@ await boomin.operations.wait(operation);
 
 To pause everything at once, pause the [distribution](/sdk/resources/distributions/)
 instead. Pausing a [relationship](/sdk/resources/relationships/) pauses that
-partner's promo **links** across every program — never the shared channel.
+entity's promo **links** across every program — never the shared channel.

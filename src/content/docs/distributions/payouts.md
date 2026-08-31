@@ -7,9 +7,9 @@ Payouts are the last leg: measured performance becomes reward grants, grants
 become immutable ledger rows, and rows are batched onto a rail that actually
 moves money.
 
-This page is the **ledger**. For the money model — how a partner earns, how
+This page is the **ledger**. For the money model — how a entity earns, how
 money leaves, and what to configure first — start at
-[Getting partners paid](/payouts/).
+[Getting entities paid](/payouts/).
 
 ## The chain
 
@@ -80,7 +80,7 @@ for await (const payout of boomin.payouts.list({ status: "awaiting_account" })) 
 ```
 
 A row lands `pending` only when its recipient already has an active,
-payouts-enabled payout account. Since partner Connect onboarding is not yet
+payouts-enabled payout account. Since entity Connect onboarding is not yet
 available, **`awaiting_account` is the normal status** — money is owed and
 nothing is wrong except that nobody told you where to send it. The `csv_batch`
 rail batches those rows anyway, which is exactly what it is for.
@@ -142,8 +142,8 @@ const status = await boomin.payouts.connectStatus();
   "rails": [ { "rail": "csv_batch", "status": "active", "isDefault": true } ],
   "stripe": {
     "configured": true,
-    "partnerAccounts": 42,
-    "partnerAccountsPayoutsEnabled": 0
+    "entityAccounts": 42,
+    "entityAccountsPayoutsEnabled": 0
   }
 }
 ```
@@ -153,9 +153,9 @@ entries carry identity and state only — never `config`, which is a
 `payout_rails:read` surface.
 
 :::caution[The stripe_connect rail cannot pay anyone yet]
-Partner disbursement over Connect needs a transfers-only Express capability that
-is not yet approved on Boomin's Stripe platform account. Partners have no
-onboarding path to complete, `partnerAccountsPayoutsEnabled` stays at zero,
+Entity disbursement over Connect needs a transfers-only Express capability that
+is not yet approved on Boomin's Stripe platform account. Entities have no
+onboarding path to complete, `entityAccountsPayoutsEnabled` stays at zero,
 and there is deliberately **no `disburse` route** on the Platform API — an
 absent route beats one that always fails. Use `csv_batch`.
 :::

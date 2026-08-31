@@ -37,7 +37,7 @@ For the full referral-first starter surface, use:
 npx @boomin/cli referral init --framework next --auth custom --write
 ```
 
-That generates the join route plus a partner status route, `/r/[code]` click tracker, and a `/partner` UI that shows the user their referral link and metrics.
+That generates the join route plus a entity status route, `/r/[code]` click tracker, and a `/entity` UI that shows the user their referral link and metrics.
 
 ## Next.js route
 
@@ -93,7 +93,7 @@ The server signs stable JSON with HMAC-SHA256:
 }
 ```
 
-Boomin verifies the signature, consumes the nonce once, validates the redirect URI, links `externalUserId` to a partner, and returns either an Instagram `authUrl` or the existing member status.
+Boomin verifies the signature, consumes the nonce once, validates the redirect URI, links `externalUserId` to a entity, and returns either an Instagram `authUrl` or the existing member status.
 
 ## Security rules
 

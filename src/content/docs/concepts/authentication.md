@@ -35,7 +35,7 @@ would reveal whether an object exists.
 
 :::danger
 A secret key in browser code, a mobile bundle, or a public repo is a full
-compromise of the organization's partner data. Browser code uses the public key,
+compromise of the organization's entity data. Browser code uses the public key,
 always.
 :::
 
@@ -80,7 +80,7 @@ The CLI turns that into a ready-to-run fix. The distribution surface uses:
 | `program_tiers:read` / `:write` | Tier ladder |
 | `connect_config:read` / `:write` | Partner Connect surface config |
 | `handoff:read` / `:write` | Signed-handoff issuers |
-| `partnerships:read` / `:write` | Durable relationships |
+| `relationships:read` / `:write` | Durable relationships |
 | `enrollments:read` / `:write` | Invite, approve, pause |
 | `connections:read` / `:write` | Provider identities and grants |
 | `distributions:read` / `:write` | Distributions and the deployment verbs |

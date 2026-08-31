@@ -1,13 +1,13 @@
 ---
 title: Pricing
-description: Partner programs are billed on monthly active partners. Your first 10 active creators are free.
+description: Partner programs are billed on monthly active entities. Your first 10 active creators are free.
 ---
 
-Partner programs are billed on **monthly active partners** — nothing else.
+Partner programs are billed on **monthly active entities** — nothing else.
 
 **Your first 10 active creators are free.**
 
-| Plan | Monthly active partners | Price |
+| Plan | Monthly active entities | Price |
 | --- | --- | --- |
 | Free | up to 10 | $0 |
 | Starter | up to 25 | $79/mo |
@@ -17,14 +17,14 @@ Partner programs are billed on **monthly active partners** — nothing else.
 
 ## What counts as active
 
-A partner is **active** in a calendar month when you've **approved** them into your program and they drove at least one tracked event that month — a referral-link click or a tracked post. Pending applicants never count, even if their links are already getting clicks, and partners with no tracked events that month are dormant. **Dormant partners and pending applicants are always free**, no matter how many are enrolled in or applying to your program.
+A entity is **active** in a calendar month when you've **approved** them into your program and they drove at least one tracked event that month — a referral-link click or a tracked post. Pending applicants never count, even if their links are already getting clicks, and entities with no tracked events that month are dormant. **Dormant entities and pending applicants are always free**, no matter how many are enrolled in or applying to your program.
 
 - Views are **never billed**. They are a value metric, not a billing metric.
-- Enrollment is never billed. A program with 5,000 enrolled partners and 8 active ones is free.
+- Enrollment is never billed. A program with 5,000 enrolled entities and 8 active ones is free.
 
 ## Verified metrics
 
-Creators connect their social accounts through OAuth, so the views and results you see on the [Partners dashboard](/partner-programs/dashboard/) are platform-verified — pulled from the connected accounts, not self-reported handles.
+Creators connect their social accounts through OAuth, so the views and results you see on the [Entities dashboard](/partner-programs/dashboard/) are platform-verified — pulled from the connected accounts, not self-reported handles.
 
 ## Start free
 
@@ -35,4 +35,4 @@ npx @boomin/cli init
 npx @boomin/cli referral init --framework next --auth custom --write
 ```
 
-You only hit a paid plan when more than 10 partners drive tracked events in the same month — which means the program is working.
+You only hit a paid plan when more than 10 entities drive tracked events in the same month — which means the program is working.
